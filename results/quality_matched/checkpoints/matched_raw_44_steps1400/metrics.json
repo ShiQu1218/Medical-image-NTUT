@@ -1,0 +1,12 @@
+{
+  "cohort": "matched",
+  "method": "raw",
+  "seed": 44,
+  "updates": 1400,
+  "train_n": 368,
+  "val_n": 85,
+  "best_step": 1365,
+  "val_dice": 0.6103932139299372,
+  "val_iou": 0.5095804260605399,
+  "elapsed_seconds": 39.73461479999969
+}

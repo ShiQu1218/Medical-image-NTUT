@@ -1,0 +1,12 @@
+{
+  "cohort": "cleaned",
+  "method": "srad",
+  "seed": 42,
+  "updates": 1400,
+  "train_n": 368,
+  "val_n": 85,
+  "best_step": 1400,
+  "val_dice": 0.6271961798672291,
+  "val_iou": 0.5278489328099086,
+  "elapsed_seconds": 44.63944619999984
+}

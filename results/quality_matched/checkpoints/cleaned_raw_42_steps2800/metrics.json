@@ -1,0 +1,14 @@
+{
+  "cohort": "cleaned",
+  "method": "raw",
+  "seed": 42,
+  "updates": 2800,
+  "train_n": 368,
+  "val_n": 85,
+  "best_step": 2135,
+  "val_dice": 0.6968820643097655,
+  "val_iou": 0.6081208491872531,
+  "elapsed_seconds": 81.3703774999999,
+  "reused_from": "results/followup/checkpoints/cleaned_raw_42_steps2800",
+  "training_source_config": "results/followup/config.json"
+}

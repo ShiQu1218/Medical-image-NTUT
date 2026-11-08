@@ -1,0 +1,16 @@
+test_completed_results_are_paired_and_match_per_image_scores (test_experiment.ExperimentTests.test_completed_results_are_paired_and_match_per_image_scores) ... ok
+test_median_and_combination_order (test_experiment.ExperimentTests.test_median_and_combination_order) ... ok
+test_metrics_empty_and_overlap (test_experiment.ExperimentTests.test_metrics_empty_and_overlap) ... ok
+test_real_manifest_has_no_group_or_exact_duplicate_leakage (test_experiment.ExperimentTests.test_real_manifest_has_no_group_or_exact_duplicate_leakage) ... ok
+test_srad_constant_and_invalid_input (test_experiment.ExperimentTests.test_srad_constant_and_invalid_input) ... ok
+test_srad_smoothing_symmetry_and_mean (test_experiment.ExperimentTests.test_srad_smoothing_symmetry_and_mean) ... ok
+test_unet_backward_and_synchronized_augmentation (test_experiment.ExperimentTests.test_unet_backward_and_synchronized_augmentation) ... ok
+test_completed_matched_experiment_integrity (test_followup.FollowupTests.test_completed_matched_experiment_integrity) ... ok
+test_exact_budgets_and_best_validation_snapshots (test_followup.FollowupTests.test_exact_budgets_and_best_validation_snapshots) ... ok
+test_export_preserves_optional_reuse_provenance (test_followup.FollowupTests.test_export_preserves_optional_reuse_provenance) ... ok
+test_sampling_matches_classes_without_holdout_or_replacement (test_followup.FollowupTests.test_sampling_matches_classes_without_holdout_or_replacement) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 6.462s
+
+OK

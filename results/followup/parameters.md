@@ -17,7 +17,7 @@
 | 學習率排程／早停 | 無；固定更新預算以控制比較條件 |
 | 精度／決定性 | FP32、channels_last，PyTorch 決定性演算法，cuDNN benchmark=False |
 | 硬體／套件 | RTX 5080；Python 3.13、torch 2.11.0+cu128；其餘沿用第一輪 environment.txt |
-| 測試集 | 本輪不載入、不前處理、不推論；報告只有驗證分數 |
+| 測試集 | 只核對來源與分組，不作前處理、訓練、推論或評估；報告只有驗證分數 |
 
 重現：從 repo 根目錄執行 `.venv/Scripts/python.exe -u followup.py --output results/followup_reproduction`。
 第一輪原始報告不覆寫。新的設定與程式雜湊保存在 config.json。

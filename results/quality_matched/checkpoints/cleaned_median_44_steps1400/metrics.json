@@ -1,0 +1,12 @@
+{
+  "cohort": "cleaned",
+  "method": "median",
+  "seed": 44,
+  "updates": 1400,
+  "train_n": 368,
+  "val_n": 85,
+  "best_step": 1400,
+  "val_dice": 0.6880945356453166,
+  "val_iou": 0.6018258382292355,
+  "elapsed_seconds": 42.052487300000394
+}

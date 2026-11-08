@@ -1,0 +1,12 @@
+{
+  "cohort": "original",
+  "method": "raw",
+  "seed": 43,
+  "updates": 2800,
+  "train_n": 550,
+  "val_n": 85,
+  "best_step": 2380,
+  "val_dice": 0.6325321470770766,
+  "val_iou": 0.5398177026962752,
+  "elapsed_seconds": 82.60599730000013
+}

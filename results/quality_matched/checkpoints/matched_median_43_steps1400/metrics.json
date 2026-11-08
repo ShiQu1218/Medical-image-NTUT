@@ -1,0 +1,12 @@
+{
+  "cohort": "matched",
+  "method": "median",
+  "seed": 43,
+  "updates": 1400,
+  "train_n": 368,
+  "val_n": 85,
+  "best_step": 1330,
+  "val_dice": 0.5722229659776478,
+  "val_iou": 0.4623042925110306,
+  "elapsed_seconds": 43.23243449999973
+}

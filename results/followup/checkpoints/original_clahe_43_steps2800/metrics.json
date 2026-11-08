@@ -1,0 +1,12 @@
+{
+  "cohort": "original",
+  "method": "clahe",
+  "seed": 43,
+  "updates": 2800,
+  "train_n": 550,
+  "val_n": 85,
+  "best_step": 2625,
+  "val_dice": 0.7169943282435484,
+  "val_iou": 0.6310139424140182,
+  "elapsed_seconds": 77.05587960000003
+}

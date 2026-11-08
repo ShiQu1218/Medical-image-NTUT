@@ -1,0 +1,12 @@
+{
+  "cohort": "cleaned",
+  "method": "clahe",
+  "seed": 42,
+  "updates": 2800,
+  "train_n": 368,
+  "val_n": 85,
+  "best_step": 2555,
+  "val_dice": 0.6848918391939471,
+  "val_iou": 0.5906079088502071,
+  "elapsed_seconds": 79.95533690000002
+}

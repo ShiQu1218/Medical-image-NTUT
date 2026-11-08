@@ -3,7 +3,12 @@
 G07 專題實驗：固定 U-Net，比較 BUSI 原版與清理版的五種前處理。
 提案 PDF 是研究背景；本次新增中值濾波、CLAHE→SRAD，以及原版／清理版比較。
 
-已完成 30 次實際訓練（每次 40 epochs、三個種子），七項測試通過。
+最新的**等樣本數品質比較**已完成：兩組皆訓練 368 張，按類別匹配，各跑三個種子與五種前處理；共同保存 1,400／2,800 次更新的結果。
+本輪只有驗證集評估，與下方第一輪測試分數分開解讀。見 [第二輪報告](results/quality_matched/report.md)、[分析](results/quality_matched/analysis.md) 與 [完整訓練參數](results/quality_matched/parameters.md)。十一項測試通過。
+
+重現第二輪：`.venv/Scripts/python.exe -u followup.py --matched --output results/quality_matched_reproduction`。
+
+以下為第一輪：30 次實際訓練（每次 40 epochs、三個種子）。
 下表是在**相同 76 張乾淨測試影像**上的平均 Dice：
 
 | 前處理 | BUSI 原版 780 張 | 清理版 529 張 |

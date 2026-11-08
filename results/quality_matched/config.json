@@ -1,0 +1,38 @@
+{
+  "budgets": [
+    1400,
+    2800
+  ],
+  "validate_every": 35,
+  "batch_size": 16,
+  "lr": 0.001,
+  "cohorts": [
+    "matched",
+    "cleaned"
+  ],
+  "sample_seed": 2026,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "methods": [
+    "raw",
+    "clahe",
+    "srad",
+    "median",
+    "clahe_srad"
+  ],
+  "size": 256,
+  "split_seed": 2026,
+  "test_evaluated": false,
+  "torch": "2.11.0+cu128",
+  "gpu": "NVIDIA GeForce RTX 5080",
+  "sources": {
+    "followup.py": "8a03ce83a09038d2b11ac29b0a1b30f2013463be85a8c569c08d2ebbce1a5f58",
+    "experiment.py": "b4e814d325a0fc464f1520e03f1f348d671f18d2df73f399575e57aae8c76fe7",
+    "dataset.py": "203c61aba38122cf128aed1be8812a8412997dc3b8d8476ba3113d45cc158910",
+    "model.py": "d1fa7a2421e8289ee8bcde11a65ae94bbad253e8abb271ba377fb16d13a3c27e",
+    "preprocessing.py": "e952e2ec72cc51a2c8c40b8b9b8f8f2e0833281b347de0e97770f3fa5937e1a8"
+  }
+}

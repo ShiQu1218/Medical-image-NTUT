@@ -78,6 +78,8 @@ def run(images, masks, indices, val, config, seed, prefix):
 def summarize(output, config):
     rows = [json.loads(p.read_text()) for p in sorted((output / "checkpoints").glob("*/metrics.json"))]
     assert len(rows) == 2*len(config["methods"])*len(config["seeds"])*len(config["budgets"])
+    fields = list(dict.fromkeys(key for row in rows for key in row))
+    rows = [{key: row.get(key, "") for key in fields} for row in rows]
     write_csv(output / "runs.csv", rows)
     summary = []
     for budget in config["budgets"]:

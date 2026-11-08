@@ -1,0 +1,5 @@
+{
+  "training_source_commit": "8d02930",
+  "exporter_sha256": "103267d6bf6abe6a25817648ede6c174707630f1010e652f5b50ca03a790233f",
+  "note": "Export-only fix preserves optional reuse provenance; training loop unchanged."
+}
