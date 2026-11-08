@@ -1,0 +1,18 @@
+{
+  "cohort": "original",
+  "method": "clahe_srad",
+  "seed": 43,
+  "best_epoch": 40,
+  "val_dice": 0.5079088522847194,
+  "train_n": 550,
+  "clean_test_n": 76,
+  "native_test_n": 117,
+  "train_seconds": 40.36557919999996,
+  "clean_dice": 0.5476677029785749,
+  "clean_iou": 0.4386107951990868,
+  "clean_dice_image_sd": 0.3141281957175053,
+  "lesion_dice": 0.6154961428238135,
+  "normal_fp_rate": 0.9,
+  "native_dice": 0.5277498797632945,
+  "native_iou": 0.42339319738949466
+}

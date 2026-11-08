@@ -1,3 +1,5 @@
+import csv
+import json
 import unittest
 from pathlib import Path
 
@@ -81,6 +83,37 @@ class ExperimentTests(unittest.TestCase):
         multifocal = next(r for r in records if len(r["masks"]) > 1)
         _, masks = load_arrays(root, [multifocal], 256)
         self.assertGreater(int(masks.sum()), 0)
+
+    def test_completed_results_are_paired_and_match_per_image_scores(self):
+        root = Path("results/busi")
+        if not (root / "runs.csv").exists():
+            self.skipTest("Complete experiment.py before checking exported results")
+        config = json.loads((root / "config.json").read_text())
+        with (root / "runs.csv").open(newline="") as stream:
+            runs = list(csv.DictReader(stream))
+        expected = {(cohort, method, str(seed)) for cohort in ("original", "cleaned")
+                    for method in config["methods"] for seed in config["seeds"]}
+        self.assertEqual({(r["cohort"], r["method"], r["seed"]) for r in runs}, expected)
+        self.assertEqual(len(runs), len(expected))
+        common_test_images = None
+        for run in runs:
+            folder = root / "checkpoints" / f"{run['cohort']}_{run['method']}_{run['seed']}"
+            with (folder / "history.csv").open(newline="") as stream:
+                history = list(csv.DictReader(stream))
+            self.assertEqual([int(r["epoch"]) for r in history], list(range(1, config["epochs"]+1)))
+            self.assertEqual(float(run["val_dice"]), max(float(r["val_dice"]) for r in history))
+            with (folder / "test.csv").open(newline="") as stream:
+                test = list(csv.DictReader(stream))
+            clean = [r for r in test if r["clean"] == "True"]
+            names = {r["image"] for r in clean}
+            if common_test_images is None:
+                common_test_images = names
+            self.assertEqual(names, common_test_images)
+            self.assertEqual(len(clean), int(run["clean_test_n"]))
+            for metric in ("dice", "iou"):
+                values = np.array([float(r[metric]) for r in clean])
+                self.assertTrue(np.isfinite(values).all() and (values >= 0).all() and (values <= 1).all())
+                self.assertAlmostEqual(float(values.mean()), float(run["clean_"+metric]), places=12)
 
 
 if __name__ == "__main__":

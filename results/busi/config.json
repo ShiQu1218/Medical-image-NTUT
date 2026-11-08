@@ -1,0 +1,46 @@
+{
+  "epochs": 40,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "size": 256,
+  "batch_size": 16,
+  "methods": [
+    "raw",
+    "clahe",
+    "srad",
+    "median",
+    "clahe_srad"
+  ],
+  "split_seed": 2026,
+  "learning_rate": 0.001,
+  "threshold": 0.5,
+  "median_kernel": 3,
+  "clahe_clip": 2.0,
+  "clahe_grid": [
+    8,
+    8
+  ],
+  "srad_iterations": 20,
+  "srad_step": 0.5,
+  "srad_order": "CLAHE then SRAD",
+  "augmentation": "rotation +/-10 deg, scale 0.95-1.05, zero padding",
+  "model": "U-Net base16 four downsamplings",
+  "loss": "BCE + soft Dice",
+  "validation": "common cleaned val",
+  "device": "cuda",
+  "gpu": "NVIDIA GeForce RTX 5080",
+  "python": "3.13.15",
+  "torch": "2.11.0+cu128",
+  "numpy": "2.3.5",
+  "opencv": "4.10.0",
+  "manifest_sha256": "45f93df564417ccfd82f45e5940a052be5e2697ac5fd68d2a4a4da86ce2dc149",
+  "source_sha256": {
+    "experiment.py": "b4e814d325a0fc464f1520e03f1f348d671f18d2df73f399575e57aae8c76fe7",
+    "dataset.py": "203c61aba38122cf128aed1be8812a8412997dc3b8d8476ba3113d45cc158910",
+    "preprocessing.py": "e952e2ec72cc51a2c8c40b8b9b8f8f2e0833281b347de0e97770f3fa5937e1a8",
+    "model.py": "d1fa7a2421e8289ee8bcde11a65ae94bbad253e8abb271ba377fb16d13a3c27e"
+  }
+}

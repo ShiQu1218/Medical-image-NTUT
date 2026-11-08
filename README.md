@@ -3,6 +3,21 @@
 G07 專題實驗：固定 U-Net，比較 BUSI 原版與清理版的五種前處理。
 提案 PDF 是研究背景；本次新增中值濾波、CLAHE→SRAD，以及原版／清理版比較。
 
+已完成 30 次實際訓練（每次 40 epochs、三個種子），七項測試通過。
+下表是在**相同 76 張乾淨測試影像**上的平均 Dice：
+
+| 前處理 | BUSI 原版 780 張 | 清理版 529 張 |
+|---|---:|---:|
+| 原圖 | 0.5657 | 0.6250 |
+| CLAHE | 0.5974 | 0.4971 |
+| SRAD | 0.6057 | 0.4474 |
+| 中值濾波 | **0.6351** | 0.6058 |
+| CLAHE→SRAD | 0.5337 | 0.4879 |
+
+本次原版以中值濾波最高，清理版以原圖最高；CLAHE→SRAD 未改善表現。
+28／30 次的最佳 epoch 位於最後六個 epoch，尚未確認訓練收斂；排名只適用於本次固定預算。
+完整變異、案例與限制見 [實驗報告](results/busi/report.md) 與 [結果分析](results/busi/analysis.md)。
+
 ## 實驗設計
 
 | 項目 | 設定 |
@@ -23,6 +38,14 @@ G07 專題實驗：固定 U-Net，比較 BUSI 原版與清理版的五種前處�
 原版保留原始資料內容，但不是允許資料洩漏的逐張隨機切分。
 兩版本使用相同訓練 epoch，樣本數及最佳化更新次數會不同。
 BUSI 沒有可用病人 ID，分組不能保證病人獨立。
+
+| 資料版本 | 訓練分區 | 驗證分區 | 測試分區 |
+|---|---:|---:|---:|
+| 原版 | 550 | 113 | 117 |
+| 清理版 | 368 | 85 | 76 |
+
+實際選模型時，兩版本都只使用上述 85 張乾淨驗證影像；主表都以 76 張乾淨測試影像評估。
+模型初始化與訓練種子固定，啟用 PyTorch 決定性演算法；不同硬體與版本仍可能產生差異。
 
 ## 前處理
 
@@ -52,10 +75,11 @@ uv pip install --python .venv/Scripts/python.exe torch==2.11.0 --index-url https
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 .venv/Scripts/python.exe prepare_data.py
 .venv/Scripts/python.exe -m unittest -v
-.venv/Scripts/python.exe -u experiment.py
+.venv/Scripts/python.exe -u experiment.py --output results/reproduction
 ```
 
 CPU 可由一般 PyPI 安裝 requirements.txt，但完整訓練較慢。所有命令從 repo 根目錄執行。
+已發表的結果放在 `results/busi/`；重現時另用 `results/reproduction/`，避免混用既有指標與未隨 repo 上傳的權重／預測。
 資料下載採公開 Kaggle 鏡像，核對 ZIP SHA-256；來源變動時程式會停止，避免靜默換資料。
 資料與模型權重留在本機，不納入 Git；提案、程式、作者勘誤清單、逐張結果與報告納入 repo。
 GitHub 上的結果可直接閱讀，不需先下載 BUSI。
@@ -77,6 +101,7 @@ GitHub 上的結果可直接閱讀，不需先下載 BUSI。
 - `results/busi/per_image.csv`：各種子所有原版測試影像的分數，含乾淨子集標記。
 - `results/busi/manifest.csv`：來源檔名、遮罩、重複群組、分區、像素雜湊及排除原因。
 - `results/busi/config.json`、`dataset_stats.json`：實際環境、參數與類別數量。
+- `results/busi/environment.txt`：本次執行的完整套件版本。
 - `results/busi/checkpoints/`：各次訓練的每 epoch 紀錄與測試指標；最佳模型和第一種子的測試預測僅留本機。
 
 空標註與空預測 Dice/IoU 設為 1；因此另外列出病灶影像 Dice，避免正常影像使總分看起來較高。

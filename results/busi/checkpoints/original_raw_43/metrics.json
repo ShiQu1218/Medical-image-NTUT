@@ -1,0 +1,18 @@
+{
+  "cohort": "original",
+  "method": "raw",
+  "seed": 43,
+  "best_epoch": 34,
+  "val_dice": 0.5147896984920782,
+  "train_n": 550,
+  "clean_test_n": 76,
+  "native_test_n": 117,
+  "train_seconds": 38.89440650000006,
+  "clean_dice": 0.5072234801773448,
+  "clean_iou": 0.4099825784628353,
+  "clean_dice_image_sd": 0.3429882266287443,
+  "lesion_dice": 0.5386209771739121,
+  "normal_fp_rate": 0.7,
+  "native_dice": 0.5093410112845321,
+  "native_iou": 0.4116313348287462
+}

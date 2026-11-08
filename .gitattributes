@@ -2,5 +2,5 @@
 *.md text eol=lf
 *.json text eol=lf
 *.txt text eol=lf
-metadata/dataset_comment_list.csv -text
+metadata/dataset_comment_list.csv -text whitespace=cr-at-eol
 *.pdf binary

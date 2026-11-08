@@ -1,0 +1,43 @@
+{
+  "original": {
+    "train": {
+      "benign": 307,
+      "malignant": 151,
+      "normal": 92
+    },
+    "val": {
+      "benign": 62,
+      "malignant": 30,
+      "normal": 21
+    },
+    "test": {
+      "benign": 68,
+      "normal": 20,
+      "malignant": 29
+    }
+  },
+  "cleaned": {
+    "train": {
+      "benign": 207,
+      "malignant": 112,
+      "normal": 49
+    },
+    "val": {
+      "benign": 45,
+      "malignant": 27,
+      "normal": 13
+    },
+    "test": {
+      "benign": 44,
+      "malignant": 22,
+      "normal": 10
+    }
+  },
+  "exclusion_reasons": {
+    "duplicate": 155,
+    "multiclass": 19,
+    "axilla": 70,
+    "needle": 7
+  },
+  "groups": 587
+}
