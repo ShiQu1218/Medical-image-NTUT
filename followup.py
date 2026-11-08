@@ -20,6 +20,17 @@ from model import UNet
 from preprocessing import METHODS, preprocess
 
 
+def matched_training_indices(records, seed):
+    """Sample only original training cases, matching cleaned class counts."""
+    rng = np.random.default_rng(seed)
+    selected = []
+    for category in ("benign", "malignant", "normal"):
+        pool = [i for i,r in enumerate(records) if r["split"] == "train" and r["category"] == category]
+        count = sum(records[i]["clean"] for i in pool)
+        selected.extend(rng.choice(pool, size=count, replace=False).tolist())
+    return sorted(selected)
+
+
 def run(images, masks, indices, val, config, seed, prefix):
     random.seed(seed)
     np.random.seed(seed)
@@ -70,7 +81,7 @@ def summarize(output, config):
     write_csv(output / "runs.csv", rows)
     summary = []
     for budget in config["budgets"]:
-        for cohort in ("original", "cleaned"):
+        for cohort in config.get("cohorts", ("original", "cleaned")):
             for method in config["methods"]:
                 group = [r for r in rows if (r["updates"], r["cohort"], r["method"]) == (budget, cohort, method)]
                 values = [r["val_dice"] for r in group]
@@ -80,7 +91,7 @@ def summarize(output, config):
     fig, axes = plt.subplots(1, 2, figsize=(13, 4), sharey=True)
     for ax, budget in zip(axes, config["budgets"]):
         x = np.arange(len(config["methods"]))
-        for cohort, offset in (("original", -.18), ("cleaned", .18)):
+        for cohort, offset in zip(config.get("cohorts", ("original", "cleaned")), (-.18, .18)):
             subset = [r for r in summary if r["updates"] == budget and r["cohort"] == cohort]
             ax.bar(x+offset, [r["val_dice"] for r in subset], .36,
                    yerr=[r["seed_sd"] for r in subset], label=cohort, capsize=3)
@@ -102,10 +113,12 @@ def summarize(output, config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("results/followup"))
+    parser.add_argument("--matched", action="store_true", help="Match original training sample and class counts to cleaned")
     args = parser.parse_args()
     output = args.output
     output.mkdir(parents=True, exist_ok=True)
     config = dict(budgets=[1400, 2800], validate_every=35, batch_size=16, lr=.001,
+                  cohorts=["matched", "cleaned"] if args.matched else ["original", "cleaned"], sample_seed=2026,
                   seeds=[42,43,44], methods=list(METHODS), size=256, split_seed=2026,
                   test_evaluated=False, torch=torch.__version__, gpu=torch.cuda.get_device_name(),
                   sources={name: hashlib.sha256(Path(name).read_bytes()).hexdigest()
@@ -121,6 +134,9 @@ def main():
     records = load_records(Path("data/Dataset_BUSI_with_GT"), Path("metadata/dataset_comment_list.csv"))
     # Test images are excluded before loading arrays or preprocessing.
     records = [r for r in records if r["split"] == "train" or (r["split"] == "val" and r["clean"])]
+    sampled = matched_training_indices(records, config["sample_seed"]) if args.matched else []
+    if args.matched:
+        write_csv(output / "sampled_original.csv", [{**records[i], "masks": "|".join(records[i]["masks"])} for i in sampled])
     write_csv(output / "manifest.csv", [{**r, "masks": "|".join(r["masks"])} for r in records])
     raw, target = load_arrays(Path("data/Dataset_BUSI_with_GT"), records, config["size"])
     masks = torch.from_numpy(target[:,None].astype(np.float32)).to("cuda", memory_format=torch.channels_last)
@@ -129,8 +145,9 @@ def main():
         with ThreadPoolExecutor(max_workers=4) as pool:
             processed = np.stack(list(pool.map(lambda image: preprocess(image, method), raw)))
         images = torch.from_numpy(processed[:,None].astype(np.float32)/255).to("cuda", memory_format=torch.channels_last)
-        for cohort in ("original", "cleaned"):
-            indices = torch.tensor([i for i,r in enumerate(records) if r["split"] == "train" and (cohort == "original" or r["clean"])], device="cuda")
+        for cohort in config["cohorts"]:
+            selected = sampled if cohort == "matched" else [i for i,r in enumerate(records) if r["split"] == "train" and (cohort == "original" or r["clean"])]
+            indices = torch.tensor(selected, device="cuda")
             for seed in config["seeds"]:
                 prefix = output / "checkpoints" / f"{cohort}_{method}_{seed}"
                 if all((prefix.parent / f"{prefix.name}_steps{b}" / "metrics.json").exists() for b in config["budgets"]):

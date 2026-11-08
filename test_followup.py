@@ -4,10 +4,22 @@ import tempfile
 import unittest
 
 import torch
-from followup import run
+from followup import run, matched_training_indices
 
 
 class FollowupTests(unittest.TestCase):
+    def test_sampling_matches_classes_without_holdout_or_replacement(self):
+        records = [dict(split=split, category=category, clean=i<3)
+                   for split in ('train','val','test')
+                   for category in ('benign','malignant','normal') for i in range(5)]
+        selected = matched_training_indices(records, 2026)
+        self.assertEqual(selected, matched_training_indices(records, 2026))
+        self.assertEqual(len(selected), len(set(selected)))
+        self.assertEqual(len(selected), 9)
+        self.assertTrue(all(records[i]['split'] == 'train' for i in selected))
+        for category in ('benign','malignant','normal'):
+            self.assertEqual(sum(records[i]['category'] == category for i in selected), 3)
+
     def test_exact_budgets_and_best_validation_snapshots(self):
         torch.set_num_threads(2)
         images = torch.rand(6, 1, 32, 32)
