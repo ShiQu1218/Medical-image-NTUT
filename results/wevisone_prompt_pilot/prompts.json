@@ -1,0 +1,7 @@
+{
+  "baseline": "Locate the instances that match the following description and provide the alpha mattes: breast lesion.",
+  "explicit_none": "Locate the instances that match the following description and provide the alpha mattes: breast lesion. If no breast lesion is visible, return None.",
+  "breast_mass": "Locate the instances that match the following description and provide the alpha mattes: breast mass.",
+  "focal_lesion": "Locate the instances that match the following description and provide the alpha mattes: a discrete focal breast lesion visible on this ultrasound.",
+  "exclude_artifacts": "Locate the instances that match the following description and provide the alpha mattes: breast lesion. Return None if there is no visible breast lesion. Exclude normal tissue, acoustic shadows, and ultrasound artifacts."
+}
