@@ -1,0 +1,446 @@
+{
+ "busi:test": {
+  "zero-shot": {
+   "raw": {
+    "fp_k": 10,
+    "normal_n": 10,
+    "miss_k": 2,
+    "lesion_n": 66,
+    "lesion_dice": [
+     0.7004433677130686,
+     0.0,
+     1
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 10,
+    "miss_k": 59,
+    "lesion_n": 66,
+    "lesion_dice": [
+     0.060628628173034986,
+     0.0,
+     1
+    ]
+   }
+  },
+  "fine-tuned, original prompt": {
+   "raw": {
+    "fp_k": 14,
+    "normal_n": 30,
+    "miss_k": 3,
+    "lesion_n": 198,
+    "lesion_dice": [
+     0.8294654570330015,
+     0.009716427778201375,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 12,
+    "normal_n": 30,
+    "miss_k": 3,
+    "lesion_n": 198,
+    "lesion_dice": [
+     0.8294654570330015,
+     0.009716427778201375,
+     3
+    ]
+   }
+  },
+  "fine-tuned, +None prompt": {
+   "raw": {
+    "fp_k": 12,
+    "normal_n": 30,
+    "miss_k": 3,
+    "lesion_n": 198,
+    "lesion_dice": [
+     0.8253097211263934,
+     0.002406154442457592,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 10,
+    "normal_n": 30,
+    "miss_k": 5,
+    "lesion_n": 198,
+    "lesion_dice": [
+     0.824343363047471,
+     0.0017896315902161527,
+     3
+    ]
+   }
+  }
+ },
+ "uclm:test": {
+  "zero-shot": {
+   "raw": {
+    "fp_k": 188,
+    "normal_n": 188,
+    "miss_k": 1,
+    "lesion_n": 143,
+    "lesion_dice": [
+     0.6481028787023078,
+     0.0,
+     1
+    ]
+   },
+   "gate": {
+    "fp_k": 82,
+    "normal_n": 188,
+    "miss_k": 40,
+    "lesion_n": 143,
+    "lesion_dice": [
+     0.5161144210536385,
+     0.0,
+     1
+    ]
+   }
+  },
+  "fine-tuned, original prompt": {
+   "raw": {
+    "fp_k": 100,
+    "normal_n": 564,
+    "miss_k": 42,
+    "lesion_n": 429,
+    "lesion_dice": [
+     0.7163701339103974,
+     0.022244417698123502,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 87,
+    "normal_n": 564,
+    "miss_k": 47,
+    "lesion_n": 429,
+    "lesion_dice": [
+     0.7082300691279392,
+     0.0316214215673638,
+     3
+    ]
+   }
+  },
+  "fine-tuned, +None prompt": {
+   "raw": {
+    "fp_k": 131,
+    "normal_n": 564,
+    "miss_k": 36,
+    "lesion_n": 429,
+    "lesion_dice": [
+     0.7290129289779537,
+     0.023838961436886998,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 89,
+    "normal_n": 564,
+    "miss_k": 46,
+    "lesion_n": 429,
+    "lesion_dice": [
+     0.7091095425860162,
+     0.026167591381452443,
+     3
+    ]
+   }
+  }
+ },
+ "uclm:all": {
+  "zero-shot": {
+   "raw": {
+    "fp_k": 419,
+    "normal_n": 419,
+    "miss_k": 13,
+    "lesion_n": 260,
+    "lesion_dice": [
+     0.5539942557963903,
+     0.0,
+     1
+    ]
+   },
+   "gate": {
+    "fp_k": 176,
+    "normal_n": 419,
+    "miss_k": 101,
+    "lesion_n": 260,
+    "lesion_dice": [
+     0.4036875444502393,
+     0.0,
+     1
+    ]
+   }
+  },
+  "fine-tuned, original prompt": {
+   "raw": {
+    "fp_k": 273,
+    "normal_n": 1257,
+    "miss_k": 130,
+    "lesion_n": 780,
+    "lesion_dice": [
+     0.6114070112191174,
+     0.01746720305701226,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 237,
+    "normal_n": 1257,
+    "miss_k": 136,
+    "lesion_n": 780,
+    "lesion_dice": [
+     0.6066965099470698,
+     0.0230243663783773,
+     3
+    ]
+   }
+  },
+  "fine-tuned, +None prompt": {
+   "raw": {
+    "fp_k": 325,
+    "normal_n": 1257,
+    "miss_k": 122,
+    "lesion_n": 780,
+    "lesion_dice": [
+     0.622713302962405,
+     0.014918498821335665,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 236,
+    "normal_n": 1257,
+    "miss_k": 136,
+    "lesion_n": 780,
+    "lesion_dice": [
+     0.6072930723227938,
+     0.01957629925204672,
+     3
+    ]
+   }
+  }
+ },
+ "busuc:all": {
+  "zero-shot": {
+   "raw": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 2,
+    "lesion_n": 811,
+    "lesion_dice": [
+     0.8796237218400373,
+     0.0,
+     1
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 811,
+    "lesion_n": 811,
+    "lesion_dice": [
+     0.0,
+     0.0,
+     1
+    ]
+   }
+  },
+  "fine-tuned, original prompt": {
+   "raw": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 22,
+    "lesion_n": 2433,
+    "lesion_dice": [
+     0.8795125801441369,
+     0.0008268856690838433,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 25,
+    "lesion_n": 2433,
+    "lesion_dice": [
+     0.8791042994496668,
+     0.000634773251856655,
+     3
+    ]
+   }
+  },
+  "fine-tuned, +None prompt": {
+   "raw": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 37,
+    "lesion_n": 2433,
+    "lesion_dice": [
+     0.8761978328303441,
+     0.0072541732040749905,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 37,
+    "lesion_n": 2433,
+    "lesion_dice": [
+     0.8761978328303441,
+     0.0072541732040749905,
+     3
+    ]
+   }
+  }
+ },
+ "busbra:test": {
+  "zero-shot": {
+   "raw": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 11,
+    "lesion_n": 374,
+    "lesion_dice": [
+     0.54459544919028,
+     0.0,
+     1
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 345,
+    "lesion_n": 374,
+    "lesion_dice": [
+     0.058836235187087776,
+     0.0,
+     1
+    ]
+   }
+  },
+  "fine-tuned, original prompt": {
+   "raw": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 49,
+    "lesion_n": 1122,
+    "lesion_dice": [
+     0.7330805975540206,
+     0.009116886890338247,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 52,
+    "lesion_n": 1122,
+    "lesion_dice": [
+     0.7321293711535833,
+     0.007997382901264406,
+     3
+    ]
+   }
+  },
+  "fine-tuned, +None prompt": {
+   "raw": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 79,
+    "lesion_n": 1122,
+    "lesion_dice": [
+     0.7115222174134771,
+     0.011414440706590511,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 0,
+    "miss_k": 79,
+    "lesion_n": 1122,
+    "lesion_dice": [
+     0.7115222174134771,
+     0.011414440706590511,
+     3
+    ]
+   }
+  }
+ },
+ "breast:all": {
+  "zero-shot": {
+   "raw": {
+    "fp_k": 4,
+    "normal_n": 4,
+    "miss_k": 6,
+    "lesion_n": 252,
+    "lesion_dice": [
+     0.6175052881661989,
+     0.0,
+     1
+    ]
+   },
+   "gate": {
+    "fp_k": 0,
+    "normal_n": 4,
+    "miss_k": 218,
+    "lesion_n": 252,
+    "lesion_dice": [
+     0.08439265033888685,
+     0.0,
+     1
+    ]
+   }
+  },
+  "fine-tuned, original prompt": {
+   "raw": {
+    "fp_k": 5,
+    "normal_n": 12,
+    "miss_k": 100,
+    "lesion_n": 756,
+    "lesion_dice": [
+     0.7005648719498954,
+     0.011361378558610424,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 4,
+    "normal_n": 12,
+    "miss_k": 109,
+    "lesion_n": 756,
+    "lesion_dice": [
+     0.6938460420844619,
+     0.014611047717403554,
+     3
+    ]
+   }
+  },
+  "fine-tuned, +None prompt": {
+   "raw": {
+    "fp_k": 5,
+    "normal_n": 12,
+    "miss_k": 131,
+    "lesion_n": 756,
+    "lesion_dice": [
+     0.6755991616951991,
+     0.02936956298132224,
+     3
+    ]
+   },
+   "gate": {
+    "fp_k": 5,
+    "normal_n": 12,
+    "miss_k": 136,
+    "lesion_n": 756,
+    "lesion_dice": [
+     0.6720442326946241,
+     0.026042659853552277,
+     3
+    ]
+   }
+  }
+ }
+}

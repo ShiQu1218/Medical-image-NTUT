@@ -1,0 +1,109 @@
+# WeVisOne-VL-4B vs YOLO26m-seg
+
+FPR = normal images with any predicted pixel. miss = lesion images with zero GT overlap. AUROC = image-level normal vs lesion from the presence score (WeVisOne logit gap, YOLO max conf). Thresholds come from each model's own validation split only. mean ± SD over seeds.
+
+## 1. Trained on BUSI only
+### In-domain and patient-held-out
+
+| Model | busi:test FPR % | busi:test FPR excl. icon % | busi:test lesion Dice | busi:test miss % | busi:test AUROC | uclm:test FPR % | uclm:test FPR excl. icon % | uclm:test lesion Dice | uclm:test miss % | uclm:test AUROC | uclm:all FPR % | uclm:all FPR excl. icon % | uclm:all lesion Dice | uclm:all miss % | uclm:all AUROC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WeVisOne raw (n=3) | 46.7 ± 5.8 (14/30) | 46.7 ± 5.8 | 0.829 ± 0.010 | 1.5 ± 0.0 (3/198) | 0.976 ± 0.012 | 17.7 ± 5.1 (100/564) | 14.9 ± 3.2 | 0.716 ± 0.022 | 9.8 ± 2.4 (42/429) | 0.954 ± 0.006 | 21.7 ± 5.5 (273/1257) | 18.6 ± 3.8 | 0.611 ± 0.017 | 16.7 ± 1.8 (130/780) | 0.937 ± 0.007 |
+| WeVisOne + gate (n=3) | 40.0 ± 10.0 (12/30) | 40.0 ± 10.0 | 0.829 ± 0.010 | 1.5 ± 0.0 (3/198) | 0.976 ± 0.012 | 15.4 ± 6.5 (87/564) | 13.3 ± 4.6 | 0.708 ± 0.032 | 11.0 ± 3.6 (47/429) | 0.954 ± 0.006 | 18.9 ± 8.3 (237/1257) | 16.5 ± 6.4 | 0.607 ± 0.023 | 17.4 ± 2.6 (136/780) | 0.937 ± 0.007 |
+| YOLO conf≥0.25 (n=3) | 16.7 ± 28.9 (5/30) | 16.7 ± 28.9 | 0.774 ± 0.005 | 7.1 ± 2.3 (14/198) | 0.960 ± 0.024 | 40.2 ± 22.6 (227/564) | 22.7 ± 16.1 | 0.583 ± 0.068 | 29.8 ± 7.1 (128/429) | 0.820 ± 0.004 | 44.5 ± 21.8 (559/1257) | 27.5 ± 17.0 | 0.476 ± 0.070 | 40.5 ± 8.8 (316/780) | 0.731 ± 0.015 |
+| YOLO val-calibrated (n=3) | 0.0 ± 0.0 (0/30) | 0.0 ± 0.0 | 0.704 ± 0.045 | 20.2 ± 5.3 (40/198) | 0.960 ± 0.024 | 9.8 ± 2.7 (55/564) | 6.9 ± 2.4 | 0.506 ± 0.011 | 43.4 ± 0.0 (186/429) | 0.820 ± 0.004 | 12.7 ± 3.1 (160/1257) | 9.3 ± 2.5 | 0.380 ± 0.005 | 56.3 ± 1.2 (439/780) | 0.731 ± 0.015 |
+| YOLO conf≥0.25, icon dets dropped (n=3) | 16.7 ± 28.9 (5/30) | 16.7 ± 28.9 | 0.774 ± 0.005 | 7.1 ± 2.3 (14/198) | 0.960 ± 0.024 | 22.7 ± 16.1 (128/564) | 22.7 ± 16.1 | 0.594 ± 0.057 | 29.8 ± 7.1 (128/429) | 0.822 ± 0.005 | 27.5 ± 17.0 (346/1257) | 27.5 ± 17.0 | 0.486 ± 0.060 | 40.5 ± 8.8 (316/780) | 0.745 ± 0.013 |
+| YOLO val-calibrated, icon dets dropped (n=3) | 0.0 ± 0.0 (0/30) | 0.0 ± 0.0 | 0.704 ± 0.045 | 20.2 ± 5.3 (40/198) | 0.960 ± 0.024 | 6.9 ± 2.4 (39/564) | 6.9 ± 2.4 | 0.508 ± 0.010 | 43.4 ± 0.0 (186/429) | 0.822 ± 0.005 | 9.3 ± 2.5 (117/1257) | 9.3 ± 2.5 | 0.381 ± 0.008 | 56.3 ± 1.2 (439/780) | 0.745 ± 0.013 |
+
+### Lesion-only external sets (no normals: FPR/AUROC undefined; BrEaST has 4 normals)
+
+| Model | busuc:all FPR % | busuc:all FPR excl. icon % | busuc:all lesion Dice | busuc:all miss % | busuc:all AUROC | busbra:test FPR % | busbra:test FPR excl. icon % | busbra:test lesion Dice | busbra:test miss % | busbra:test AUROC | breast:all FPR % | breast:all FPR excl. icon % | breast:all lesion Dice | breast:all miss % | breast:all AUROC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WeVisOne raw (n=3) | – | – | 0.880 ± 0.001 | 0.9 ± 0.1 (22/2433) | – | – | – | 0.733 ± 0.009 | 4.4 ± 0.7 (49/1122) | – | 41.7 ± 14.4 (5/12) | 41.7 ± 14.4 | 0.701 ± 0.011 | 13.2 ± 1.3 (100/756) | 0.902 ± 0.023 |
+| WeVisOne + gate (n=3) | – | – | 0.879 ± 0.001 | 1.0 ± 0.3 (25/2433) | – | – | – | 0.732 ± 0.008 | 4.6 ± 0.8 (52/1122) | – | 33.3 ± 14.4 (4/12) | 33.3 ± 14.4 | 0.694 ± 0.015 | 14.4 ± 1.6 (109/756) | 0.902 ± 0.023 |
+| YOLO conf≥0.25 (n=3) | – | – | 0.625 ± 0.021 | 19.4 ± 9.4 (473/2433) | – | – | – | 0.398 ± 0.089 | 48.8 ± 17.4 (547/1122) | – | 33.3 ± 38.2 (4/12) | 33.3 ± 38.2 | 0.443 ± 0.076 | 45.2 ± 11.7 (342/756) | 0.614 ± 0.098 |
+| YOLO val-calibrated (n=3) | – | – | 0.502 ± 0.052 | 42.5 ± 6.4 (1034/2433) | – | – | – | 0.291 ± 0.034 | 66.2 ± 4.7 (743/1122) | – | 16.7 ± 14.4 (2/12) | 16.7 ± 14.4 | 0.335 ± 0.012 | 61.5 ± 1.6 (465/756) | 0.614 ± 0.098 |
+| YOLO conf≥0.25, icon dets dropped (n=3) | – | – | 0.625 ± 0.021 | 19.4 ± 9.4 (473/2433) | – | – | – | 0.398 ± 0.089 | 48.8 ± 17.4 (547/1122) | – | 33.3 ± 38.2 (4/12) | 33.3 ± 38.2 | 0.443 ± 0.076 | 45.2 ± 11.7 (342/756) | 0.614 ± 0.098 |
+| YOLO val-calibrated, icon dets dropped (n=3) | – | – | 0.502 ± 0.052 | 42.5 ± 6.4 (1034/2433) | – | – | – | 0.291 ± 0.034 | 66.2 ± 4.7 (743/1122) | – | 16.7 ± 14.4 (2/12) | 16.7 ± 14.4 | 0.335 ± 0.012 | 61.5 ± 1.6 (465/756) | 0.614 ± 0.098 |
+
+### Lesion performance at matched normal-image FPR (thresholds swept on the test set; analysis, not a deployable rule)
+
+| Set | Model | runs | FPR ≤ 5%: lesion Dice / miss % | FPR ≤ 10% | FPR ≤ 15% |
+|---|---|---:|---|---|---|
+| uclm:all | WeVisOne (presence gate) | 3 | 0.527 ± 0.014 / 29.9 ± 2.8 | 0.582 ± 0.006 / 20.9 ± 2.1 | 0.603 ± 0.011 / 17.9 ± 1.2 |
+| uclm:all | YOLO (conf threshold) | 3 | 0.316 ± 0.009 / 65.1 ± 1.2 | 0.353 ± 0.002 / 60.4 ± 0.4 | 0.390 ± 0.015 / 55.0 ± 1.2 |
+| uclm:all | nnU-Net (max-prob gate) | 1 | 0.160 / 81.2 | 0.253 / 68.8 | 0.315 / 60.0 |
+| uclm:test | WeVisOne (presence gate) | 3 | 0.658 ± 0.010 / 18.4 ± 1.6 | 0.698 ± 0.022 / 12.8 ± 2.5 | 0.710 ± 0.019 / 10.7 ± 2.1 |
+| uclm:test | YOLO (conf threshold) | 3 | 0.466 ± 0.027 / 48.7 ± 4.3 | 0.500 ± 0.025 / 44.5 ± 3.6 | 0.528 ± 0.031 / 40.6 ± 3.0 |
+| uclm:test | nnU-Net (max-prob gate) | 1 | 0.314 / 63.6 | 0.386 / 55.2 | 0.429 / 48.3 |
+
+## 2. GT-box oracle (seed 42): where is the external gap?
+
+| Set | generate lesion Dice | GT-box lesion Dice | generate miss % |
+|---|---:|---:|---:|
+| busi:test | 0.833 | 0.919 | 1.5 |
+| uclm:all | 0.592 | 0.908 | 17.7 |
+| uclm:test | 0.693 | 0.924 | 11.2 |
+
+## 4. Low-data regime (fraction of the 368 BUSI training images)
+### 
+
+| Model | busi:test FPR % | busi:test FPR excl. icon % | busi:test lesion Dice | busi:test miss % | busi:test AUROC | uclm:all FPR % | uclm:all FPR excl. icon % | uclm:all lesion Dice | uclm:all miss % | uclm:all AUROC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 100% WeVisOne gate (n=3) | 40.0 ± 10.0 (12/30) | 40.0 ± 10.0 | 0.829 ± 0.010 | 1.5 ± 0.0 (3/198) | 0.976 ± 0.012 | 18.9 ± 8.3 (237/1257) | 16.5 ± 6.4 | 0.607 ± 0.023 | 17.4 ± 2.6 (136/780) | 0.937 ± 0.007 |
+| 100% YOLO cal (n=3) | 0.0 ± 0.0 (0/30) | 0.0 ± 0.0 | 0.704 ± 0.045 | 20.2 ± 5.3 (40/198) | 0.960 ± 0.024 | 12.7 ± 3.1 (160/1257) | 9.3 ± 2.5 | 0.380 ± 0.005 | 56.3 ± 1.2 (439/780) | 0.731 ± 0.015 |
+
+## 5. Multi-source training (BUS_UC never used; UCLM test patients never used)
+### 
+
+| Model | busi:test FPR % | busi:test FPR excl. icon % | busi:test lesion Dice | busi:test miss % | busi:test AUROC | uclm:test FPR % | uclm:test FPR excl. icon % | uclm:test lesion Dice | uclm:test miss % | uclm:test AUROC | busuc:all FPR % | busuc:all FPR excl. icon % | busuc:all lesion Dice | busuc:all miss % | busuc:all AUROC | busbra:test FPR % | busbra:test FPR excl. icon % | busbra:test lesion Dice | busbra:test miss % | busbra:test AUROC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| BUSI only YOLO cal (n=3) | 0.0 ± 0.0 (0/30) | 0.0 ± 0.0 | 0.704 ± 0.045 | 20.2 ± 5.3 (40/198) | 0.960 ± 0.024 | 9.8 ± 2.7 (55/564) | 6.9 ± 2.4 | 0.506 ± 0.011 | 43.4 ± 0.0 (186/429) | 0.820 ± 0.004 | – | – | 0.502 ± 0.052 | 42.5 ± 6.4 (1034/2433) | – | – | – | 0.291 ± 0.034 | 66.2 ± 4.7 (743/1122) | – |
+
+## 5b. Authoritative baselines on the same split and metric
+### nnU-Net v2 2d (nnUNetTrainer_250epochs, fold 0 = our train/val) vs WeVisOne vs YOLO
+
+| Model | busi:test FPR % | busi:test FPR excl. icon % | busi:test lesion Dice | busi:test miss % | busi:test AUROC | uclm:test FPR % | uclm:test FPR excl. icon % | uclm:test lesion Dice | uclm:test miss % | uclm:test AUROC | uclm:all FPR % | uclm:all FPR excl. icon % | uclm:all lesion Dice | uclm:all miss % | uclm:all AUROC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WeVisOne raw (n=3) | 46.7 ± 5.8 (14/30) | 46.7 ± 5.8 | 0.829 ± 0.010 | 1.5 ± 0.0 (3/198) | 0.976 ± 0.012 | 17.7 ± 5.1 (100/564) | 14.9 ± 3.2 | 0.716 ± 0.022 | 9.8 ± 2.4 (42/429) | 0.954 ± 0.006 | 21.7 ± 5.5 (273/1257) | 18.6 ± 3.8 | 0.611 ± 0.017 | 16.7 ± 1.8 (130/780) | 0.937 ± 0.007 |
+| WeVisOne + gate (n=3) | 40.0 ± 10.0 (12/30) | 40.0 ± 10.0 | 0.829 ± 0.010 | 1.5 ± 0.0 (3/198) | 0.976 ± 0.012 | 15.4 ± 6.5 (87/564) | 13.3 ± 4.6 | 0.708 ± 0.032 | 11.0 ± 3.6 (47/429) | 0.954 ± 0.006 | 18.9 ± 8.3 (237/1257) | 16.5 ± 6.4 | 0.607 ± 0.023 | 17.4 ± 2.6 (136/780) | 0.937 ± 0.007 |
+| nnU-Net raw (n=1) | 30.0 (3/10) | 30.0 | 0.823 | 0.0 (0/66) | 0.992 | 69.1 (130/188) | 64.9 | 0.584 | 21.7 (31/143) | 0.752 | 72.3 (303/419) | 69.5 | 0.493 | 26.2 (68/260) | 0.681 |
+| nnU-Net + gate (val max-prob threshold) (n=1) | 0.0 (0/10) | 0.0 | 0.642 | 28.8 (19/66) | 0.992 | 3.2 (6/188) | 3.2 | 0.249 | 71.3 (102/143) | 0.752 | 4.1 (17/419) | 4.1 | 0.156 | 81.5 (212/260) | 0.681 |
+| YOLO val-calibrated (n=3) | 0.0 ± 0.0 (0/30) | 0.0 ± 0.0 | 0.704 ± 0.045 | 20.2 ± 5.3 (40/198) | 0.960 ± 0.024 | 9.8 ± 2.7 (55/564) | 6.9 ± 2.4 | 0.506 ± 0.011 | 43.4 ± 0.0 (186/429) | 0.820 ± 0.004 | 12.7 ± 3.1 (160/1257) | 9.3 ± 2.5 | 0.380 ± 0.005 | 56.3 ± 1.2 (439/780) | 0.731 ± 0.015 |
+
+### 
+
+| Model | busuc:all FPR % | busuc:all FPR excl. icon % | busuc:all lesion Dice | busuc:all miss % | busuc:all AUROC | busbra:test FPR % | busbra:test FPR excl. icon % | busbra:test lesion Dice | busbra:test miss % | busbra:test AUROC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WeVisOne raw (n=3) | – | – | 0.880 ± 0.001 | 0.9 ± 0.1 (22/2433) | – | – | – | 0.733 ± 0.009 | 4.4 ± 0.7 (49/1122) | – |
+| nnU-Net raw (n=1) | – | – | 0.819 | 0.9 (7/811) | – | – | – | 0.677 | 11.8 (44/374) | – |
+| YOLO conf≥0.25 (n=3) | – | – | 0.625 ± 0.021 | 19.4 ± 9.4 (473/2433) | – | – | – | 0.398 ± 0.089 | 48.8 ± 17.4 (547/1122) | – |
+
+### Box-prompted decoders (lesion Dice; MedSAM zero-shot, likely saw BUSI in pre-training)
+
+| Set | MedSAM, GT boxes | WeVisOne decoder, GT boxes | MedSAM, YOLO-cal boxes | WeVisOne decoder, YOLO-cal boxes |
+|---|---:|---:|---:|---:|
+| busi:test | 0.872 | 0.919 | 0.681 | – |
+| uclm:all | 0.784 | 0.908 | 0.355 | – |
+| uclm:test | 0.805 | 0.924 | 0.473 | – |
+| busuc:all | 0.899 | – | – | – |
+| busbra:test | 0.845 | – | – | – |
+
+## 5c. Replicating Yu et al. 2026 (QIMS) YOLO protocol
+Uncleaned BUSI lesions (647), image-level random 80/10/10, yolo11n-seg, 512 px, 50 epochs, conf ≥ 0.25. 'leaked' = test image whose author-curated duplicate group also appears in train.
+
+| split seed | test per-image Dice | test pooled Dice | leaked (n) per-image | not leaked (n) per-image | UCLM lesions per-image | UCLM lesions pooled | UCLM normal FPR % |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 0.741 | 0.703 | 0.814 (18) | 0.712 (46) | 0.562 | 0.679 | 38.7 |
+| 1 | 0.782 | 0.762 | 0.790 (31) | 0.775 (33) | 0.562 | 0.624 | 72.6 |
+| 2 | 0.804 | 0.809 | 0.870 (22) | 0.769 (42) | 0.580 | 0.696 | 32.7 |
+
+## 6. Paired patient-cluster bootstrap (A − B; 5000 resamples)
+
+| Comparison | images / patients | ΔFPR (pp) [95% CI] | Δ lesion Dice [95% CI] |
+|---|---:|---:|---:|
+| uclm:all | WeVisOne gate vs YOLO cal | 679 / 38 | +6.1 [+1.3, +11.1] | +0.227 [+0.169, +0.295] |
+| uclm:all | WeVisOne raw vs YOLO 0.25 | 679 / 38 | -22.8 [-27.9, -17.3] | +0.135 [+0.080, +0.198] |
+| uclm:test | WeVisOne gate vs YOLO cal | 331 / 18 | +5.7 [-0.3, +12.5] | +0.202 [+0.116, +0.313] |
+| uclm:test | WeVisOne raw vs YOLO 0.25 | 331 / 18 | -22.5 [-29.3, -15.6] | +0.133 [+0.050, +0.238] |
+| busuc:all | WeVisOne gate vs YOLO cal | 811 / 811 | – | +0.378 [+0.352, +0.403] |
+| busuc:all | WeVisOne raw vs YOLO 0.25 | 811 / 811 | – | +0.254 [+0.234, +0.275] |

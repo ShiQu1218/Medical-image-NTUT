@@ -8,7 +8,7 @@
 
 本專案為 G07 專題，依提案建立固定 U-Net 的 BUSI 分割比較，加入中值濾波、CLAHE→SRAD 與資料清理實驗。以下整理全部已完成的主要結果；原始 CSV、曲線與設定均可追溯。
 
-延伸實驗見 [WeVisOne-VL 提示詞初篩](results/wevisone_prompt_pilot/README.md)，比較五種提示對正常影像誤報與病灶 Dice 的影響。
+延伸實驗見 [WeVisOne-VL 提示詞初篩](results/wevisone_prompt_pilot/README.md)，比較五種提示對正常影像誤報與病灶 Dice 的影響。完整評估見 [WeVisOne-VL 與 YOLO、nnU-Net、MedSAM 的跨資料集比較](results/wevisone_vs_yolo/README.md)：涵蓋 BUSI、BUS-UCLM、BUS-BRA、BUS_UC、BrEaST 五個資料集、相同誤報率下的比較、失敗分解與審稿意見逐點回覆。
 
 ## 實驗總覽
 
