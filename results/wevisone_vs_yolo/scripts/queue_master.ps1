@@ -145,6 +145,19 @@ if (-not (Test-Path "../runs/yolo/busi_m_s42/eval_corrupt/report.json")) {
 if ($LASTEXITCODE) { throw "nnunet corrupt prep" }
 Run-NnUnet 501 "BUSIclean" "busi:val" ($CORR -split ",") "busi_s0"
 
+# 2c) Memorization probe (corruptions.py hflip/rot/zoom/shift): BUS_UC (suspected pretraining exposure) vs controls
+$MEMO = (@("hflip1", "rot1", "zoom1", "shift1") | ForEach-Object { $c = $_; "busi:test", "uclm:all", "busuc:all", "busbra:test", "breast:all" | ForEach-Object { "$_~$c" } }) -join ","
+if (-not (Test-Path ../runs/wevis/zeroshot_memo/DONE)) {
+    Log "wevis zero-shot memorization probe"
+    & $py wevis_eval.py --out ../runs/wevis/zeroshot_memo --sets "busi:val,$MEMO" --modes generate
+    if ($LASTEXITCODE) { throw "zeroshot memo" }
+    "" | Out-File ../runs/wevis/zeroshot_memo/DONE
+}
+Eval-Wevis "../runs/wevis/baseline_s42" "busi:val,$MEMO"
+& $py nnunet_prep.py --ids 501 --extra_tests $MEMO
+if ($LASTEXITCODE) { throw "nnunet memo prep" }
+Run-NnUnet 501 "BUSIclean" "busi:val" ($MEMO -split ",") "busi_s0"
+
 # 3) Grouped 5-fold CV over all clean BUSI (baseline config for both models; YOLO 1 seed, WeVisOne 1 seed)
 foreach ($k in 0..4) {
     Run-Yolo "cv$k" "busicv${k}:train" "busicv${k}:val" "busicv${k}:val,busicv${k}:test" 42

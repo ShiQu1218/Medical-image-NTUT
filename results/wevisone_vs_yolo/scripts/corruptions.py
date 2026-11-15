@@ -11,6 +11,12 @@ Families marked IN_TRAIN overlap the 'strong' training augmentation of train.py 
   icon     body-mark pictogram + text overlays in corners (the UCLM shortcut)
   sector   convex-probe fan: everything outside a sector is black (GT cut accordingly)
   fov      zoom-out: image shrunk inside black UI frame (field of view / scanner layout)
+
+Memorization probe (memo_probe.py; not part of FAMILIES): mild label-preserving geometry, GT transformed too.
+  hflip    horizontal mirror (sev 1 only; also in the fine-tuning flip augmentation)
+  rot      rotation +-8 / +-15 deg
+  zoom     centre zoom-in x1.15 / x1.3
+  shift    translation 8% / 15% of width and height (black border)
 """
 from __future__ import annotations
 
@@ -95,6 +101,18 @@ def apply(gray: np.ndarray, masks: list[np.ndarray], family: str, sev: int, key:
             c[y0:y0 + nh, x0:x0 + nw] = cv2.resize(m, (nw, nh), interpolation=cv2.INTER_NEAREST)
             new.append(c)
         masks = new
+    elif family in ("hflip", "rot", "zoom", "shift"):  # memorization probe: mild, label-preserving geometry
+        if family == "hflip":
+            M = np.float32([[-1, 0, w - 1], [0, 1, 0]])
+        elif family == "rot":
+            M = cv2.getRotationMatrix2D((w / 2, h / 2), (8 if sev == 1 else 15) * (1 if rng.random() < 0.5 else -1), 1.0)
+        elif family == "zoom":  # zoom-in around the centre (edges cropped)
+            M = cv2.getRotationMatrix2D((w / 2, h / 2), 0, 1.15 if sev == 1 else 1.3)
+        else:
+            f = 0.08 if sev == 1 else 0.15
+            M = np.float32([[1, 0, f * w * (1 if rng.random() < 0.5 else -1)], [0, 1, f * h * (1 if rng.random() < 0.5 else -1)]])
+        g = cv2.warpAffine(g, M, (w, h), flags=cv2.INTER_LINEAR, borderValue=0)
+        masks = [cv2.warpAffine(m, M, (w, h), flags=cv2.INTER_NEAREST, borderValue=0) for m in masks]
     else:
         raise ValueError(family)
     return (np.clip(g, 0, 1) * 255).astype(np.uint8), [m for m in masks if m.sum() >= 16]

@@ -88,7 +88,7 @@ def main():
                 from yolo_eval import load_dets
                 npz, thr = mode[len("yolo:"):].rsplit(":", 1)  # npz file or the eval dir holding <spec>_dets.npz
                 npz = Path(npz)
-                npz = npz.parent / f"{spec.replace(':', '_')}_dets.npz" if npz.is_dir() else npz
+                npz = npz / f"{spec.replace(':', '_')}_dets.npz" if npz.is_dir() else npz
                 yolo = (load_dets(npz)[1], float(thr))
                 tag = f"yolo{float(thr):g}"
             recs = run(engine, spec, mode if yolo is None else "yolo", out / f"{spec.replace(':', '_')}_{tag}.jsonl", yolo)

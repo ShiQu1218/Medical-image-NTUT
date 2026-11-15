@@ -240,7 +240,7 @@ def main():
         lm_acc, seg_acc, n_acc = 0.0, 0.0, 0
         for i, row in enumerate(epoch_rows):
             lm_loss, seg_loss = step_sample(engine, model, decoder, sources.load(row), args)
-            if row['image'] in hard_ids:
+            if hard_ids and row.get("image") in hard_ids:  # non-BUSI rows (e.g. BUS-BRA) carry no 'image' key
                 lm_loss = lm_loss * args.hard_negative_weight
             ((lm_loss + args.seg_weight * seg_loss) / args.accum).backward()
             lm_acc, seg_acc, n_acc = lm_acc + lm_loss.item(), seg_acc + seg_loss.item(), n_acc + 1
