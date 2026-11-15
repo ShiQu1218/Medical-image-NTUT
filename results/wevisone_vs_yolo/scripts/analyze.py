@@ -453,8 +453,8 @@ def main():
     # 5) multi-source
     ms = {}
     for tag in ("ms_bra", "ms_bra_uclm"):
-        ms[tag] = dict(wevis=group("wevis", [WEVIS_DIR / f"{tag}_s42"], TESTS),
-                       yolo=group("yolo", [YOLO_DIR / f"{tag}_s{s}" for s in (42, 43)], TESTS))
+        ms[tag] = dict(wevis=group("wevis", [WEVIS_DIR / f"{tag}_s{s}" for s in SEEDS], TESTS),
+                       yolo=group("yolo", [YOLO_DIR / f"{tag}_s{s}" for s in SEEDS], TESTS))
     rep["multi_source"] = ms
     rows = [("BUSI only WeVisOne strong-aug + gate", g["wevis_aug"], "gate"), ("BUSI only YOLO cal", g["yolo"], "cal"),
             ("BUSI+BRA WeVisOne + gate", ms["ms_bra"]["wevis"], "gate"), ("BUSI+BRA YOLO cal", ms["ms_bra"]["yolo"], "cal"),

@@ -191,5 +191,13 @@ foreach ($s in 42, 43, 44) {
 }
 # 7) nnU-Net trained on BUS-BRA, tested on all 647 BUSI lesions (replicates the CMT-BUSNet nnU-Net transfer setting) + UCLM
 Run-NnUnet 502 "BUSBRA" "busbra:val" @("busbra:val", "busbra:test", "busirand0:train+busirand0:val+busirand0:test", "uclm:all") "busbra_s0"
+
+# 8) Multi-source extra seeds: YOLO s44, WeVisOne s43/s44 (same config as s42)
+Run-Yolo "ms_bra" $msb[0] $msb[1] "$($msb[1]),busi:test,uclm:all,$EXT" 44 80 25
+Run-Yolo "ms_bra_uclm" $msc[0] $msc[1] "$($msc[1]),busi:test,uclm:all,$EXT" 44 80 25
+foreach ($s in 43, 44) {
+    Run-Wevis "ms_bra_s$s" "$($msb[1]),busi:test,uclm:all,$EXT" @("--train_spec", $msb[0], "--val_spec", $msb[1], "--aug", "strong", "--total_steps", "690", "--n_vals", "4", "--seed", "$s")
+    Run-Wevis "ms_bra_uclm_s$s" "$($msc[1]),busi:test,uclm:all,$EXT" @("--train_spec", $msc[0], "--val_spec", $msc[1], "--aug", "strong", "--total_steps", "690", "--n_vals", "4", "--seed", "$s")
+}
 Log "ALL DONE"
 "DONE" | Out-File ../runs/queue_master.done
