@@ -1,6 +1,27 @@
 # WeVisOne-VL-4B vs YOLO26m-seg
 
-FPR = normal images with any predicted pixel. miss = lesion images with zero GT overlap. AUROC = image-level normal vs lesion from the presence score (WeVisOne logit gap, YOLO max conf). Thresholds come from each model's own validation split only. mean ± SD over seeds.
+## 主要統計結論與適用範圍
+
+主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。
+
+- **固定門檻 bootstrap，uclm:test**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.202（95% CI +0.116 至 +0.313）；正常影像 FPR 差 +5.7 個百分點（95% CI -0.3 至 +12.5），區間跨過 0，無法判定正常影像 FPR 有差異。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
+- **固定門檻 bootstrap，uclm:all**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.227（95% CI +0.169 至 +0.295）；正常影像 FPR 差 +6.1 個百分點（95% CI +1.3 至 +11.1），WeVisOne 的正常影像 FPR 較高。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
+
+bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準，也未作多重比較校正。
+
+- **測試集操作曲線，uclm:test，FPR ≤ 10%**：病灶 Dice 為 WeVisOne 0.698 ± 0.022、YOLO 0.504 ± 0.026（跨 seed mean ± SD）。各模型實際 FPR 為 9.6 ± 0.0%／9.4 ± 0.3%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。
+- **測試集操作曲線，uclm:all，FPR ≤ 10%**：病灶 Dice 為 WeVisOne 0.582 ± 0.006、YOLO 0.363 ± 0.004（跨 seed mean ± SD）。各模型實際 FPR 為 9.6 ± 0.3%／9.8 ± 0.0%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。
+
+操作曲線在測試集用正常標籤限制 FPR，再用測試病灶 Dice 選出最佳門檻；因此屬探索性、可能樂觀的包絡線。可說 WeVisOne 在這些測試集的相同 FPR 上限下呈現較高 Dice；不可引用固定門檻的 bootstrap CI 宣稱 matched-FPR 優勢達統計顯著，也不可將這些測試集門檻當作已驗證的部署規則。
+
+定位補充見 [嚴格 F1](STRICT_F1.md)（union-mask IoU ≥ 0.25／0.50）及 [共同命中分析](COMMON_HITS.md)。共同命中的 Dice 受模型依賴的樣本選擇影響，需連同兩模型各自命中／漏失數與全病灶 Dice 解讀；這是影像級評估，並非病灶實例一對一匹配。
+
+少量資料 WeVisOne：已通過完整性檢查 9/9 個 fraction × seed 組合；只有訓練與三個 split 評估皆完整的 run 會納入報告。目標為每個 10%／25%／50% 子集各有 seed 42、43、44；未完成前不可宣稱三 seed 結果已齊全。
+
+
+FPR = normal images with any predicted pixel. miss = lesion images with zero GT overlap. AUROC = image-level normal vs lesion from the presence score (WeVisOne logit gap, YOLO max conf). Fixed-point tables use each model's own validation-calibrated threshold or a prespecified default (WeVisOne raw / YOLO conf >= 0.25). Matched-FPR curves and sensitivity-at-FPR use test-selected thresholds and are descriptive only. mean ± sample SD over training seeds; seed-pooled k/N repeats the same images.
+
+Strict localization F1 and paired Dice on commonly hit lesions: [STRICT_F1.md](STRICT_F1.md), [COMMON_HITS.md](COMMON_HITS.md).
 
 ## 1. Trained on BUSI only
 ### In-domain and patient-held-out
@@ -35,13 +56,15 @@ FPR = normal images with any predicted pixel. miss = lesion images with zero GT 
 
 ### Lesion performance at matched normal-image FPR (thresholds swept on the test set; analysis, not a deployable rule)
 
+For each test cohort and seed, maximize TEST lesion Dice among all evaluated thresholds with TEST FPR <= the budget. This uses both test normal labels and lesion masks, so values are selected descriptive envelopes and can be optimistic. Actual FPR can be below the budget and differs across models; exact achieved FPRs and thresholds are in report.json. These comparisons do not inherit the fixed-point bootstrap CIs or establish statistical superiority at matched FPR.
+
 | Set | Model | runs | FPR ≤ 5%: lesion Dice / miss % | FPR ≤ 10% | FPR ≤ 15% |
 |---|---|---:|---|---|---|
 | uclm:all | WeVisOne (presence gate) | 3 | 0.527 ± 0.014 / 29.9 ± 2.8 | 0.582 ± 0.006 / 20.9 ± 2.1 | 0.603 ± 0.011 / 17.9 ± 1.2 |
-| uclm:all | YOLO (conf threshold) | 3 | 0.316 ± 0.009 / 65.1 ± 1.2 | 0.353 ± 0.002 / 60.4 ± 0.4 | 0.390 ± 0.015 / 55.0 ± 1.2 |
+| uclm:all | YOLO (conf threshold) | 3 | 0.324 ± 0.002 / 64.2 ± 0.7 | 0.363 ± 0.004 / 58.8 ± 1.2 | 0.405 ± 0.017 / 53.1 ± 1.7 |
 | uclm:all | nnU-Net (max-prob gate) | 1 | 0.160 / 81.2 | 0.253 / 68.8 | 0.315 / 60.0 |
 | uclm:test | WeVisOne (presence gate) | 3 | 0.658 ± 0.010 / 18.4 ± 1.6 | 0.698 ± 0.022 / 12.8 ± 2.5 | 0.710 ± 0.019 / 10.7 ± 2.1 |
-| uclm:test | YOLO (conf threshold) | 3 | 0.466 ± 0.027 / 48.7 ± 4.3 | 0.500 ± 0.025 / 44.5 ± 3.6 | 0.528 ± 0.031 / 40.6 ± 3.0 |
+| uclm:test | YOLO (conf threshold) | 3 | 0.476 ± 0.023 / 47.6 ± 3.5 | 0.504 ± 0.026 / 44.1 ± 3.5 | 0.540 ± 0.036 / 38.9 ± 4.0 |
 | uclm:test | nnU-Net (max-prob gate) | 1 | 0.314 / 63.6 | 0.386 / 55.2 | 0.429 / 48.3 |
 
 ## 2. GT-box oracle (seed 42): where is the external gap?
@@ -64,15 +87,17 @@ FPR = normal images with any predicted pixel. miss = lesion images with zero GT 
 | yolo | cal_noicon | 6.9 (5/72) | 0.699 | 18.2 | 0.944 | 0.869 |
 
 ## 4. Low-data regime (fraction of the 368 BUSI training images)
+Training/subset seeds = 42/43/44, paired with YOLO; nested subsets per seed, 230 WeVisOne updates and 5 validations. Only fully audited WeVisOne runs enter this table. Completed low-data runs: 9/9; see low_data_status.json.
+
 ### 
 
 | Model | busi:test FPR % | busi:test FPR excl. icon % | busi:test lesion Dice | busi:test miss % | busi:test AUROC | uclm:all FPR % | uclm:all FPR excl. icon % | uclm:all lesion Dice | uclm:all miss % | uclm:all AUROC |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 10% WeVisOne gate (n=1) | 0.0 (0/10) | 0.0 | 0.533 | 39.4 (26/66) | 0.941 | 3.8 (16/419) | 3.8 | 0.392 | 52.3 (136/260) | 0.898 |
+| 10% WeVisOne gate (n=3) | 13.3 ± 15.3 (4/30) | 13.3 ± 15.3 | 0.416 ± 0.102 | 51.5 ± 10.5 (102/198) | 0.817 ± 0.148 | 3.0 ± 1.6 (38/1257) | 3.0 ± 1.6 | 0.301 ± 0.079 | 60.6 ± 7.6 (473/780) | 0.872 ± 0.028 |
 | 10% YOLO cal (n=3) | 10.0 ± 10.0 (3/30) | 10.0 ± 10.0 | 0.069 ± 0.035 | 88.4 ± 8.6 (175/198) | 0.564 ± 0.081 | 7.3 ± 5.9 (92/1257) | 6.8 ± 5.6 | 0.032 ± 0.035 | 92.2 ± 6.5 (719/780) | 0.601 ± 0.033 |
-| 25% WeVisOne gate (n=1) | 30.0 (3/10) | 30.0 | 0.809 | 3.0 (2/66) | 0.924 | 39.6 (166/419) | 22.7 | 0.571 | 20.0 (52/260) | 0.928 |
+| 25% WeVisOne gate (n=3) | 23.3 ± 20.8 (7/30) | 23.3 ± 20.8 | 0.740 ± 0.107 | 12.1 ± 14.5 (24/198) | 0.948 ± 0.029 | 25.3 ± 19.5 (318/1257) | 18.4 ± 13.6 | 0.534 ± 0.112 | 26.5 ± 19.1 (207/780) | 0.935 ± 0.014 |
 | 25% YOLO cal (n=3) | 10.0 ± 17.3 (3/30) | 10.0 ± 17.3 | 0.650 ± 0.051 | 22.2 ± 7.2 (44/198) | 0.941 ± 0.010 | 26.3 ± 17.1 (331/1257) | 19.2 ± 4.9 | 0.391 ± 0.021 | 51.8 ± 2.5 (404/780) | 0.729 ± 0.008 |
-| 50% WeVisOne gate (n=1) | 40.0 (4/10) | 40.0 | 0.818 | 3.0 (2/66) | 0.974 | 11.5 (48/419) | 11.5 | 0.618 | 19.2 (50/260) | 0.929 |
+| 50% WeVisOne gate (n=3) | 33.3 ± 5.8 (10/30) | 33.3 ± 5.8 | 0.807 ± 0.021 | 3.0 ± 3.0 (6/198) | 0.975 ± 0.006 | 20.8 ± 9.1 (261/1257) | 15.6 ± 8.4 | 0.600 ± 0.056 | 19.1 ± 7.1 (149/780) | 0.929 ± 0.008 |
 | 50% YOLO cal (n=3) | 6.7 ± 11.5 (2/30) | 6.7 ± 11.5 | 0.706 ± 0.013 | 17.2 ± 4.9 (34/198) | 0.957 ± 0.014 | 20.7 ± 21.6 (260/1257) | 16.2 ± 14.2 | 0.434 ± 0.063 | 47.6 ± 10.7 (371/780) | 0.773 ± 0.030 |
 | 100% WeVisOne gate (n=3) | 40.0 ± 10.0 (12/30) | 40.0 ± 10.0 | 0.829 ± 0.010 | 1.5 ± 0.0 (3/198) | 0.976 ± 0.012 | 18.9 ± 8.3 (237/1257) | 16.5 ± 6.4 | 0.607 ± 0.023 | 17.4 ± 2.6 (136/780) | 0.937 ± 0.007 |
 | 100% YOLO cal (n=3) | 0.0 ± 0.0 (0/30) | 0.0 ± 0.0 | 0.704 ± 0.045 | 20.2 ± 5.3 (40/198) | 0.960 ± 0.024 | 12.7 ± 3.1 (160/1257) | 9.3 ± 2.5 | 0.380 ± 0.005 | 56.3 ± 1.2 (439/780) | 0.731 ± 0.015 |
@@ -152,16 +177,18 @@ Families gain/speckle/blur overlap the strong-aug training augmentation (marked 
 
 ## 6. Paired patient-cluster bootstrap (A − B; 5000 resamples)
 
-| Comparison | images / patients | ΔFPR (pp) [95% CI] | Δ lesion Dice [95% CI] |
+FIXED operating-point analysis: predictions are generated with validation-calibrated or prespecified default thresholds. Average each image's metric across the available training seeds, then resample patients with replacement, using the same sampled patients for A and B. Thresholds and models stay fixed in every resample. Percentile 95% CIs describe patient-sampling uncertainty conditional on these models and thresholds; they exclude retraining and calibration uncertainty, are not adjusted for multiple comparisons, and do not apply to matched-FPR curves. Positive ΔFPR is worse for A; positive ΔDice is better for A. UCLM test is a subset of UCLM all, not an independent replication. UCLM has patient IDs; BUSI and BUS_UC use available image/duplicate groups as resampling units, not verified patients.
+
+| Comparison | images / resampling units | ΔFPR (pp) [95% CI] | Δ lesion Dice [95% CI] |
 |---|---:|---:|---:|
-| uclm:all | WeVisOne gate vs YOLO cal | 679 / 38 | +6.1 [+1.3, +11.1] | +0.227 [+0.169, +0.295] |
-| uclm:all | WeVisOne raw vs YOLO 0.25 | 679 / 38 | -22.8 [-27.9, -17.3] | +0.135 [+0.080, +0.198] |
-| uclm:all | WeVisOne aug gate vs YOLO cal | 679 / 38 | -0.9 [-5.0, +3.5] | +0.192 [+0.133, +0.259] |
-| uclm:test | WeVisOne gate vs YOLO cal | 331 / 18 | +5.7 [-0.3, +12.5] | +0.202 [+0.116, +0.313] |
-| uclm:test | WeVisOne raw vs YOLO 0.25 | 331 / 18 | -22.5 [-29.3, -15.6] | +0.133 [+0.050, +0.238] |
-| uclm:test | WeVisOne aug gate vs YOLO cal | 331 / 18 | -0.4 [-5.4, +6.1] | +0.184 [+0.096, +0.300] |
-| busuc:all | WeVisOne gate vs YOLO cal | 811 / 811 | – | +0.378 [+0.352, +0.403] |
-| busuc:all | WeVisOne raw vs YOLO 0.25 | 811 / 811 | – | +0.254 [+0.234, +0.275] |
-| busuc:all | WeVisOne aug gate vs YOLO cal | 811 / 811 | – | +0.321 [+0.296, +0.345] |
-| BUSI OOF | WeVisOne gate vs YOLO cal | 529 / 529 | +6.9 [-2.7, +16.9] | +0.061 [+0.030, +0.090] |
-| BUSI OOF | WeVisOne raw vs YOLO 0.25 | 529 / 529 | +8.3 [-5.4, +21.7] | +0.069 [+0.044, +0.095] |
+| uclm:all / WeVisOne gate vs YOLO cal | 679 / 38 | +6.1 [+1.3, +11.1] | +0.227 [+0.169, +0.295] |
+| uclm:all / WeVisOne raw vs YOLO 0.25 | 679 / 38 | -22.8 [-27.9, -17.3] | +0.135 [+0.080, +0.198] |
+| uclm:all / WeVisOne aug gate vs YOLO cal | 679 / 38 | -0.9 [-5.0, +3.5] | +0.192 [+0.133, +0.259] |
+| uclm:test / WeVisOne gate vs YOLO cal | 331 / 18 | +5.7 [-0.3, +12.5] | +0.202 [+0.116, +0.313] |
+| uclm:test / WeVisOne raw vs YOLO 0.25 | 331 / 18 | -22.5 [-29.3, -15.6] | +0.133 [+0.050, +0.238] |
+| uclm:test / WeVisOne aug gate vs YOLO cal | 331 / 18 | -0.4 [-5.4, +6.1] | +0.184 [+0.096, +0.300] |
+| busuc:all / WeVisOne gate vs YOLO cal | 811 / 811 | – | +0.378 [+0.352, +0.403] |
+| busuc:all / WeVisOne raw vs YOLO 0.25 | 811 / 811 | – | +0.254 [+0.234, +0.275] |
+| busuc:all / WeVisOne aug gate vs YOLO cal | 811 / 811 | – | +0.321 [+0.296, +0.345] |
+| BUSI OOF / WeVisOne gate vs YOLO cal | 529 / 529 | +6.9 [-2.7, +16.9] | +0.061 [+0.030, +0.090] |
+| BUSI OOF / WeVisOne raw vs YOLO 0.25 | 529 / 529 | +8.3 [-5.4, +21.7] | +0.069 [+0.044, +0.095] |

@@ -1,7 +1,8 @@
 # Serial GPU queue for the WeVisOne-vs-YOLO study. Every step is skip-if-done, so the script can be rerun.
+param([switch]$LowDataOnly)
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
-$py = "python"
+$py = "C:/Users/luis/miniconda3/envs/wevisone/python.exe"
 $EXT = "busuc:all,busbra:test,breast:all"   # uclm:test is derived from uclm:all records (patient filter)
 function Log($m) { "$(Get-Date -Format s) $m" | Tee-Object -Append ../runs/queue_master.status }
 
@@ -43,6 +44,26 @@ function Run-Wevis($name, $sets, [string[]]$trainArgs) {
         "" | Out-File "$run/TRAIN_DONE"
     }
     Eval-Wevis $run $sets
+}
+
+function Run-LowData {
+    foreach ($f in "0.1", "0.25", "0.5") {
+        foreach ($s in 42, 43, 44) {
+            Run-Wevis "frac${f}_s$s" "busi:val,busi:test,uclm:all" @("--train_spec", "busi:train@$f/$s", "--seed", "$s", "--total_steps", "230", "--n_vals", "5")
+        }
+    }
+}
+
+if ($LowDataOnly) {
+    Log "LOW DATA 3-SEED START"
+    Run-LowData
+    $analysisProcess = Start-Process -FilePath $py -ArgumentList @("analyze.py") -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "../runs/comparison/_log_analyze_low_data.out" -RedirectStandardError "../runs/comparison/_log_analyze_low_data.err"
+    if ($analysisProcess.ExitCode) { throw "low-data aggregate" }
+    & $py low_data_status.py
+    if ($LASTEXITCODE) { throw "low-data completion audit" }
+    Log "LOW DATA 3-SEED DONE"
+    "DONE" | Out-File ../runs/queue_low_data.done
+    exit 0
 }
 
 # 0) YOLO BUSI baselines (separate queue) must be finished
@@ -91,7 +112,7 @@ foreach ($s in 42, 43, 44) {
 # 1b) Authoritative baselines: nnU-Net v2 (Nat Methods 2021) on our exact split; MedSAM (Nat Commun 2024) box-prompted
 $env:nnUNet_raw = (Resolve-Path ../nnunet/raw).Path; $env:nnUNet_preprocessed = (Resolve-Path ../nnunet/preprocessed).Path
 $env:nnUNet_results = (Join-Path (Resolve-Path ..).Path "nnunet/results")
-$nnbin = "$env:CONDA_PREFIX/Scripts"
+$nnbin = "C:/Users/luis/miniconda3/envs/wevisone/Scripts"
 function Run-NnUnet($did, $dname, $val, [string[]]$tests, $run) {
     $model = "$env:nnUNet_results/Dataset${did}_$dname/nnUNetTrainer_250epochs__nnUNetPlans__2d/fold_0/checkpoint_final.pth"
     if (-not (Test-Path $model)) {
@@ -167,8 +188,8 @@ foreach ($k in 0..4) {
 # 4) Low-data regime: subsets nested per seed; WeVisOne keeps the 230-update budget, validates 5 times
 foreach ($f in "0.1", "0.25", "0.5") {
     foreach ($s in 42, 43, 44) { Run-Yolo "frac${f}_sub$s" "busi:train@$f/$s" "busi:val" "busi:val,busi:test,uclm:all" $s }
-    Run-Wevis "frac${f}_s42" "busi:val,busi:test,uclm:all" @("--train_spec", "busi:train@$f/42", "--total_steps", "230", "--n_vals", "5")
 }
+Run-LowData
 
 # 5) Multi-source (strong aug for WeVisOne, compare against aug_s*): (b) UCLM held out, (c) + UCLM train patients
 $msb = @("busi:train+busbra:train", "busi:val+busbra:val")

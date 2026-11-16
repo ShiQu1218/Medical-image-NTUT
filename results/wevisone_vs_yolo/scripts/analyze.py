@@ -1,11 +1,12 @@
 """Aggregate WeVisOne vs YOLO results into runs/comparison/{report.json, REPORT.md}.
 
-Operating points (thresholds are always fixed on the model's own validation spec, never on test):
+Fixed operating points (validation-calibrated or prespecified defaults):
   WeVisOne raw   : generated masks as is
   WeVisOne gate  : keep masks iff presence_score > max(val normal presence_score)
   YOLO 0.25      : detections with conf >= 0.25 (Ultralytics default)
   YOLO cal       : detections with conf > max(val normal max-conf)
-Threshold-free: image-level AUROC (normal vs lesion) of the presence score; sensitivity at FPR <= 10%.
+AUROC is threshold-free. Sensitivity at FPR <= 10% and matched-FPR curves select thresholds on test;
+these are descriptive operating-curve analyses, not validation-fixed deployment rules.
 """
 from __future__ import annotations
 
@@ -108,6 +109,7 @@ def summarize(recs):
                 empty=m["lesion_empty_rate"])
 
 
+@lru_cache(maxsize=128)
 def model_ops(kind: str, run: Path, spec: str):
     """Returns {op_name: records} plus threshold-free stats for one model run on one spec."""
     if kind == "wevis":
@@ -200,11 +202,15 @@ def paired_bootstrap(a_seeds, b_seeds, n_boot=5000, seed=2026):
 
     point = stat(patients)
     boots = np.array([stat(rng.choice(patients, len(patients))) for _ in range(n_boot)])
-    ci = lambda col: [float(np.nanpercentile(boots[:, col], 2.5)), float(np.nanpercentile(boots[:, col], 97.5))]  # noqa: E731
+    def ci(col):
+        values = boots[:, col]
+        values = values[np.isfinite(values)]
+        return [float(x) for x in np.percentile(values, [2.5, 97.5])] if len(values) else [float("nan"), float("nan")]
     return dict(n_images=len(ids), n_patients=len(patients),
                 fpr_diff=float(point[0]), fpr_diff_ci=ci(0), lesion_dice_diff=float(point[1]), lesion_dice_diff_ci=ci(1))
 
 
+@lru_cache(None)
 def operating_curve(kind, run, spec):
     """(FPR, lesion Dice, zero-overlap rate) over every threshold of the image-level score.
     WeVisOne/nnU-Net: gate on presence_score; YOLO: detection confidence threshold."""
@@ -228,9 +234,8 @@ def operating_curve(kind, run, spec):
                 stats.append((bool(u.any()), int((u & gt).sum()), common.scores(u, gt)[0]))
             pre.append((r["category"] == "normal", conf, stats))
         thrs = sorted({0.0} | {float(c) for _, conf, _ in pre for c in conf})
-        step = max(1, len(thrs) // 400)
         pts = []
-        for t in thrs[::step] + [thrs[-1]]:
+        for t in thrs:
             fp = nn_ = 0
             ld, miss = [], 0
             for is_norm, conf, stats in pre:
@@ -251,8 +256,7 @@ def operating_curve(kind, run, spec):
         thrs = sorted({-1e9} | {float(r["presence_score"]) for r in recs})
         fn = lambda t: gated(recs, t)  # noqa: E731
     pts = []
-    step = max(1, len(thrs) // 400)
-    for t in thrs[::step] + [thrs[-1]]:
+    for t in thrs:
         s = summarize(fn(t))
         pts.append((s["fpr"], s["lesion_dice"], s["zero_overlap"], t))
     return pts
@@ -349,7 +353,15 @@ def main():
     rep, md = {}, ["# WeVisOne-VL-4B vs YOLO26m-seg", "",
                    "FPR = normal images with any predicted pixel. miss = lesion images with zero GT overlap. "
                    "AUROC = image-level normal vs lesion from the presence score (WeVisOne logit gap, YOLO max conf). "
-                   "Thresholds come from each model's own validation split only. mean ± SD over seeds.", ""]
+                   "Fixed-point tables use each model's own validation-calibrated threshold or a prespecified default "
+                   "(WeVisOne raw / YOLO conf >= 0.25). Matched-FPR curves and sensitivity-at-FPR use test-selected thresholds "
+                   "and are descriptive only. mean ± sample SD over training seeds; seed-pooled k/N repeats the same images.", "",
+                   "Strict localization F1 and paired Dice on commonly hit lesions: [STRICT_F1.md](STRICT_F1.md), "
+                   "[COMMON_HITS.md](COMMON_HITS.md).", ""]
+    rep["analysis_protocols"] = dict(
+        fixed_point_bootstrap="Validation-fixed/default predictions; seed-average each image, then paired patient-cluster resampling; no threshold refitting",
+        matched_fpr="Test-selected maximum lesion Dice subject to FPR <= target; descriptive and optimistically selected, no bootstrap inference",
+        uncertainty="Across-seed sample SD is not a CI; bootstrap CI conditions on trained models and calibrated thresholds, excludes retraining/calibration uncertainty; unadjusted 95% intervals")
 
     # 1) BUSI-trained models on all test sets
     g = dict(wevis=group("wevis", [WEVIS_DIR / f"baseline_s{s}" for s in SEEDS], TESTS),
@@ -393,10 +405,15 @@ def main():
                 if pts:
                     mf.setdefault(spec, {}).setdefault(label, {})[target] = dict(
                         n_runs=len(pts), fpr=mean_sd([p[0] for p in pts]), lesion_dice=mean_sd([p[1] for p in pts]),
-                        zero_overlap=mean_sd([p[2] for p in pts]))
+                        zero_overlap=mean_sd([p[2] for p in pts]), thresholds=[p[3] for p in pts],
+                        actual_fprs=[p[0] for p in pts])
     rep["matched_fpr"] = mf
     if mf:
         md += ["### Lesion performance at matched normal-image FPR (thresholds swept on the test set; analysis, not a deployable rule)", "",
+               "For each test cohort and seed, maximize TEST lesion Dice among all evaluated thresholds with TEST FPR <= the budget. "
+               "This uses both test normal labels and lesion masks, so values are selected descriptive envelopes and can be optimistic. "
+               "Actual FPR can be below the budget and differs across models; exact achieved FPRs and thresholds are in report.json. "
+               "These comparisons do not inherit the fixed-point bootstrap CIs or establish statistical superiority at matched FPR.", "",
                "| Set | Model | runs | FPR ≤ 5%: lesion Dice / miss % | FPR ≤ 10% | FPR ≤ 15% |", "|---|---|---:|---|---|---|"]
         for spec, d in mf.items():
             for label, t in d.items():
@@ -437,9 +454,14 @@ def main():
         md.append("")
 
     # 4) low data
+    from low_data_status import audit as low_data_audit
+    low_status = low_data_audit()
+    rep["low_data_status"] = low_status
+    (OUT / "low_data_status.json").write_text(json.dumps(low_status, indent=2), encoding="utf-8")
     fr = {}
     for f in ("0.1", "0.25", "0.5"):
-        fr[f] = dict(wevis=group("wevis", [WEVIS_DIR / f"frac{f}_s42"], ["busi:test", "uclm:all"]),
+        ready = [WEVIS_DIR / f"frac{f}_s{s}" for s in SEEDS if low_status[f"frac{f}_s{s}"]["complete"]]
+        fr[f] = dict(wevis=group("wevis", ready, ["busi:test", "uclm:all"]),
                      yolo=group("yolo", [YOLO_DIR / f"frac{f}_sub{s}_s{s}" for s in SEEDS], ["busi:test", "uclm:all"]))
     fr["1.0"] = dict(wevis=group("wevis", [WEVIS_DIR / f"baseline_s{s}" for s in SEEDS], ["busi:test", "uclm:all"]),
                      yolo=g["yolo"] and group("yolo", [YOLO_DIR / f"busi_m_s{s}" for s in SEEDS], ["busi:test", "uclm:all"]))
@@ -448,6 +470,9 @@ def main():
     for f, d in fr.items():
         rows += [(f"{float(f) * 100:g}% WeVisOne gate", d["wevis"], "gate"), (f"{float(f) * 100:g}% YOLO cal", d["yolo"], "cal")]
     md.append("## 4. Low-data regime (fraction of the 368 BUSI training images)")
+    md.append("Training/subset seeds = 42/43/44, paired with YOLO; nested subsets per seed, 230 WeVisOne updates and 5 validations. "
+              "Only fully audited WeVisOne runs enter this table. "
+              f"Completed low-data runs: {sum(r['complete'] for r in low_status.values())}/9; see low_data_status.json.\n")
     md.append(table("", rows, ["busi:test", "uclm:all"]))
 
     # 5) multi-source
@@ -598,15 +623,65 @@ def main():
     rep["paired_bootstrap"] = boot
     if boot:
         md += ["## 6. Paired patient-cluster bootstrap (A − B; 5000 resamples)", "",
-               "| Comparison | images / patients | ΔFPR (pp) [95% CI] | Δ lesion Dice [95% CI] |", "|---|---:|---:|---:|"]
+               "FIXED operating-point analysis: predictions are generated with validation-calibrated or prespecified default thresholds. "
+               "Average each image's metric across the available training seeds, then resample patients with replacement, using the "
+               "same sampled patients for A and B. Thresholds and models stay fixed in every resample. "
+               "Percentile 95% CIs describe patient-sampling uncertainty conditional on these models and thresholds; they exclude "
+               "retraining and calibration uncertainty, are not adjusted for multiple comparisons, and do not apply to matched-FPR curves. "
+               "Positive ΔFPR is worse for A; positive ΔDice is better for A. UCLM test is a subset of UCLM all, not an independent replication. "
+               "UCLM has patient IDs; BUSI and BUS_UC use available image/duplicate groups as resampling units, not verified patients.", "",
+               "| Comparison | images / resampling units | ΔFPR (pp) [95% CI] | Δ lesion Dice [95% CI] |", "|---|---:|---:|---:|"]
         for k, b in boot.items():
             fpr = "–" if np.isnan(b["fpr_diff"]) else f"{100 * b['fpr_diff']:+.1f} [{100 * b['fpr_diff_ci'][0]:+.1f}, {100 * b['fpr_diff_ci'][1]:+.1f}]"
-            md.append(f"| {k} | {b['n_images']} / {b['n_patients']} | {fpr} | "
+            comparison = k.replace("|", "/")
+            md.append(f"| {comparison} | {b['n_images']} / {b['n_patients']} | {fpr} | "
                       f"{b['lesion_dice_diff']:+.3f} [{b['lesion_dice_diff_ci'][0]:+.3f}, {b['lesion_dice_diff_ci'][1]:+.3f}] |")
         md.append("")
+    conclusion = main_conclusions(rep)
+    md[2:2] = [conclusion, ""]
+    (OUT / "SUMMARY.md").write_text(conclusion, encoding="utf-8")
     (OUT / "report.json").write_text(json.dumps(rep, indent=2, default=float))
     (OUT / "REPORT.md").write_text("\n".join(md), encoding="utf-8")
     print("\n".join(md))
+
+
+def main_conclusions(rep):
+    """Keep the main statistical claims tied to the appropriate estimand."""
+    lines = ["## 主要統計結論與適用範圍", "",
+             "主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。", ""]
+    for spec in ("uclm:test", "uclm:all"):
+        b = rep["paired_bootstrap"].get(f"{spec} | WeVisOne gate vs YOLO cal")
+        if not b:
+            continue
+        lo, hi = b["fpr_diff_ci"]
+        fpr_claim = "區間跨過 0，無法判定正常影像 FPR 有差異" if lo <= 0 <= hi else (
+            "WeVisOne 的正常影像 FPR 較高" if lo > 0 else "WeVisOne 的正常影像 FPR 較低")
+        lines.append(f"- **固定門檻 bootstrap，{spec}**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 "
+                     f"{b['lesion_dice_diff']:+.3f}（95% CI {b['lesion_dice_diff_ci'][0]:+.3f} 至 {b['lesion_dice_diff_ci'][1]:+.3f}）；"
+                     f"正常影像 FPR 差 {100*b['fpr_diff']:+.1f} 個百分點（95% CI {100*lo:+.1f} 至 {100*hi:+.1f}），{fpr_claim}。"
+                     "這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。")
+    lines += ["", "bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；"
+              "每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準，也未作多重比較校正。", ""]
+    for spec in ("uclm:test", "uclm:all"):
+        curves = rep.get("matched_fpr", {}).get(spec, {})
+        wa = curves.get("WeVisOne (presence gate)", {})
+        yb = curves.get("YOLO (conf threshold)", {})
+        a = wa.get(0.10, wa.get("0.1"))
+        b = yb.get(0.10, yb.get("0.1"))
+        if a and b:
+            lines.append(f"- **測試集操作曲線，{spec}，FPR ≤ 10%**：病灶 Dice 為 WeVisOne {fmt(a['lesion_dice'])}、"
+                         f"YOLO {fmt(b['lesion_dice'])}（跨 seed mean ± SD）。各模型實際 FPR 為 "
+                         f"{fmt(a['fpr'], True)}%／{fmt(b['fpr'], True)}%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。")
+    lines += ["", "操作曲線在測試集用正常標籤限制 FPR，再用測試病灶 Dice 選出最佳門檻；因此屬探索性、可能樂觀的包絡線。"
+              "可說 WeVisOne 在這些測試集的相同 FPR 上限下呈現較高 Dice；不可引用固定門檻的 bootstrap CI 宣稱 matched-FPR 優勢達統計顯著，"
+              "也不可將這些測試集門檻當作已驗證的部署規則。", "",
+              "定位補充見 [嚴格 F1](STRICT_F1.md)（union-mask IoU ≥ 0.25／0.50）及 [共同命中分析](COMMON_HITS.md)。"
+              "共同命中的 Dice 受模型依賴的樣本選擇影響，需連同兩模型各自命中／漏失數與全病灶 Dice 解讀；這是影像級評估，並非病灶實例一對一匹配。", ""]
+    status = rep.get("low_data_status", {})
+    done = sum(r["complete"] for r in status.values())
+    lines.append(f"少量資料 WeVisOne：已通過完整性檢查 {done}/9 個 fraction × seed 組合；只有訓練與三個 split 評估皆完整的 run 會納入報告。"
+                 "目標為每個 10%／25%／50% 子集各有 seed 42、43、44；未完成前不可宣稱三 seed 結果已齊全。")
+    return "\n".join(lines) + "\n"
 
 
 if __name__ == "__main__":
