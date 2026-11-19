@@ -1,0 +1,11 @@
+{
+  "model": "yolo",
+  "params": 26969951,
+  "n_images": 60,
+  "latency_ms_mean": 15.229793323669583,
+  "latency_ms_median": 9.646349935792387,
+  "latency_ms_p95": 57.022940093884245,
+  "images_per_s": 65.66077285145012,
+  "peak_vram_gb": 0.2514772415161133,
+  "gpu": "NVIDIA GeForce RTX 4090"
+}

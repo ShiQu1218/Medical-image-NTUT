@@ -32,6 +32,27 @@ def uclm_test_ids():
     return frozenset(r["Image"] for r in sources.rows("uclm:test"))
 
 
+_ID = {"busi": lambda r: r["image"], "uclm": lambda r: r["Image"], "busbra": lambda r: f"busbra/{r['ID']}"}
+
+
+@lru_cache(None)
+def src_val_ids(src):
+    """Image ids of <src>:val, or None when that source has no id rule."""
+    return frozenset(_ID[src](r) for r in sources.rows(f"{src}:val")) if src in _ID else None
+
+
+def src_normals(val_recs, val_spec, test_spec):
+    """Per-source calibration (multi-source runs): keep only the val normals of the test cohort's own source
+    when that source is part of a pooled val spec and has normals there; otherwise None (fall back to pooled)."""
+    src = test_spec.split(":")[0]
+    parts = [p.split(":")[0] for p in val_spec.split("+")]
+    if len(parts) < 2 or src not in parts or src_val_ids(src) is None:
+        return None
+    ids = src_val_ids(src)
+    own = [r for r in val_recs if r["category"] == "normal" and r["id"] in ids]
+    return own or None
+
+
 def key(spec):
     return spec.replace(":", "_")
 
@@ -121,6 +142,8 @@ def model_ops(kind: str, run: Path, spec: str):
         ops = {"raw": recs}
         if thr is not None:
             ops["gate"] = gated(recs, thr)
+            own = src_normals(val, wevis_val_spec(run), spec)
+            ops["gate_src"] = gated(recs, max(r["presence_score"] for r in own)) if own else ops["gate"]
         return ops, recs
     got = yolo_dets(run, spec)
     if got is None:
@@ -133,6 +156,11 @@ def model_ops(kind: str, run: Path, spec: str):
                    if r["category"] == "normal"], default=0.0)
         raw = dets_to_records(recs, dets, 0.25, strict=False, drop_icon=drop)
         ops["0.25" + suffix], ops["cal" + suffix] = raw, dets_to_records(recs, dets, thr, drop_icon=drop)
+        if not drop:
+            vall = dets_to_records(vrec, vdet, 1.0)
+            own = src_normals(vall, yolo_val_spec(run), spec)
+            ops["cal_src"] = (dets_to_records(recs, dets, max(r["presence_score"] for r in own))
+                              if own else ops["cal"])
         if not drop:
             scored = raw
         else:
@@ -206,8 +234,25 @@ def paired_bootstrap(a_seeds, b_seeds, n_boot=5000, seed=2026):
         values = boots[:, col]
         values = values[np.isfinite(values)]
         return [float(x) for x in np.percentile(values, [2.5, 97.5])] if len(values) else [float("nan"), float("nan")]
+    def pval(col):  # two-sided percentile-bootstrap p for H0: diff = 0, floored at 1/(n_boot+1)
+        v = boots[:, col]
+        v = v[np.isfinite(v)]
+        if not len(v):
+            return float("nan")
+        return float(min(1.0, max(1.0 / (len(v) + 1), 2 * min((v <= 0).mean(), (v >= 0).mean()))))
     return dict(n_images=len(ids), n_patients=len(patients),
-                fpr_diff=float(point[0]), fpr_diff_ci=ci(0), lesion_dice_diff=float(point[1]), lesion_dice_diff_ci=ci(1))
+                fpr_diff=float(point[0]), fpr_diff_ci=ci(0), lesion_dice_diff=float(point[1]), lesion_dice_diff_ci=ci(1),
+                fpr_p=pval(0), lesion_dice_p=pval(1))
+
+
+def holm(pvals: dict) -> dict:
+    """Holm-Bonferroni adjusted p-values over one family {name: p}; NaN entries are left out."""
+    items = sorted(((p, k) for k, p in pvals.items() if np.isfinite(p)))
+    m, out, run = len(items), {}, 0.0
+    for i, (p, k) in enumerate(items):
+        run = max(run, min(1.0, (m - i) * p))
+        out[k] = run
+    return out
 
 
 @lru_cache(None)
@@ -275,6 +320,9 @@ def op_records(kind, run, spec, op):
 
 # ---------------- report ----------------
 YOLO_DIR, WEVIS_DIR = RUNS / "yolo", RUNS / "wevis"
+# nnU-Net: busi_s0 = fold 0; busi_s1/s2 = retrainings on the identical split (splits_final folds 1,2 copy fold 0)
+NN_RUNS = [r for r in (RUNS / "nnunet" / f"busi_s{k}" for k in range(3))
+           if (r / "busi_val_generate.jsonl").exists() and (r / "breast_all_generate.jsonl").exists()]
 SEEDS = (42, 43, 44)
 
 
@@ -366,7 +414,13 @@ def main():
     # 1) BUSI-trained models on all test sets
     g = dict(wevis=group("wevis", [WEVIS_DIR / f"baseline_s{s}" for s in SEEDS], TESTS),
              wevis_aug=group("wevis", [WEVIS_DIR / f"aug_s{s}" for s in SEEDS], TESTS),
-             yolo=group("yolo", [YOLO_DIR / f"busi_m_s{s}" for s in SEEDS], TESTS))
+             yolo=group("yolo", [YOLO_DIR / f"busi_m_s{s}" for s in SEEDS], TESTS),
+             yolo_aug=group("yolo", [YOLO_DIR / f"busi_maug_s{s}" for s in SEEDS], TESTS),
+             yolo_x=group("yolo", [YOLO_DIR / f"busi_x_s{s}" for s in SEEDS], TESTS),
+             wevis_long460=group("wevis", [WEVIS_DIR / f"long460_s{s}" for s in SEEDS], TESTS),
+             wevis_long690=group("wevis", [WEVIS_DIR / f"long690_s{s}" for s in SEEDS], TESTS),
+             wevis_lokr=group("wevis", [WEVIS_DIR / f"lokr_s{s}" for s in SEEDS], TESTS),
+             wevis_lokr_am3=group("wevis", [WEVIS_DIR / f"lokr_am3_s{s}" for s in SEEDS], TESTS))
     hyb = {}
     for which in ("cal", "0.25"):
         per = []
@@ -385,6 +439,14 @@ def main():
             ("YOLO conf≥0.25", g["yolo"], "0.25"), ("YOLO val-calibrated", g["yolo"], "cal"),
             ("YOLO conf≥0.25, icon dets dropped", g["yolo"], "0.25_noicon"),
             ("YOLO val-calibrated, icon dets dropped", g["yolo"], "cal_noicon"),
+            ("YOLO26m + US strong aug conf≥0.25", g["yolo_aug"], "0.25"),
+            ("YOLO26m + US strong aug val-calibrated", g["yolo_aug"], "cal"),
+            ("YOLO26x conf≥0.25", g["yolo_x"], "0.25"),
+            ("YOLO26x val-calibrated", g["yolo_x"], "cal"),
+            ("WeVisOne LoRA 460 updates + gate", g["wevis_long460"], "gate"),
+            ("WeVisOne LoRA 690 updates + gate", g["wevis_long690"], "gate"),
+            ("WeVisOne LoKr (AdamW, val-selected LR) + gate", g["wevis_lokr"], "gate"),
+            ("WeVisOne LoKr (Automagic3, constant, 1e-4) + gate", g["wevis_lokr_am3"], "gate"),
             ("Hybrid: YOLO cal boxes → WeVisOne decoder", hyb["cal"], "raw"),
             ("Hybrid: YOLO 0.25 boxes → WeVisOne decoder", hyb["0.25"], "raw")]
     md.append("## 1. Trained on BUSI only")
@@ -396,7 +458,7 @@ def main():
     mf = {}
     curves = {"WeVisOne (presence gate)": ("wevis", [WEVIS_DIR / f"baseline_s{s}" for s in SEEDS]),
               "YOLO (conf threshold)": ("yolo", [YOLO_DIR / f"busi_m_s{s}" for s in SEEDS]),
-              "nnU-Net (max-prob gate)": ("wevis", [RUNS / "nnunet" / "busi_s0"])}
+              "nnU-Net (max-prob gate)": ("wevis", NN_RUNS)}
     for spec in ["uclm:all", "uclm:test"]:
         for label, (kind, runs) in curves.items():
             for target in (0.05, 0.10, 0.15):
@@ -484,12 +546,21 @@ def main():
     rows = [("BUSI only WeVisOne strong-aug + gate", g["wevis_aug"], "gate"), ("BUSI only YOLO cal", g["yolo"], "cal"),
             ("BUSI+BRA WeVisOne + gate", ms["ms_bra"]["wevis"], "gate"), ("BUSI+BRA YOLO cal", ms["ms_bra"]["yolo"], "cal"),
             ("BUSI+BRA+UCLMtrain WeVisOne + gate", ms["ms_bra_uclm"]["wevis"], "gate"),
-            ("BUSI+BRA+UCLMtrain YOLO cal", ms["ms_bra_uclm"]["yolo"], "cal")]
+            ("BUSI+BRA+UCLMtrain YOLO cal", ms["ms_bra_uclm"]["yolo"], "cal"),
+            ("BUSI+BRA+UCLMtrain WeVisOne raw", ms["ms_bra_uclm"]["wevis"], "raw"),
+            ("BUSI+BRA+UCLMtrain WeVisOne + per-source gate", ms["ms_bra_uclm"]["wevis"], "gate_src"),
+            ("BUSI+BRA+UCLMtrain YOLO per-source cal", ms["ms_bra_uclm"]["yolo"], "cal_src")]
     md.append("## 5. Multi-source training (BUS_UC never used; UCLM test patients never used)")
+    md.append("Pooled calibration (`gate`/`cal`) takes the maximum score over ALL pooled val normals. With BUSI+BRA+UCLM val "
+              "(73 normals) that maximum is set by one BUSI normal (normal (25); presence 2.1/4.3/1.6 per seed), while UCLM "
+              "lesions score lower in this model (median 3.0/2.0/1.25 vs 5-6 for BUSI-only models). The pooled gate therefore "
+              "keeps only 62%/1%/41% of UCLM test lesions. Per-source calibration (prespecified, val only): a test cohort uses "
+              "the maximum over its own source's val normals when that source is in the pooled val; otherwise pooled. Applied "
+              "identically to YOLO. Sources without val normals (BUS-BRA, BUS_UC, BrEaST) fall back to pooled.\n")
     md.append(table("", rows, ["busi:test", "uclm:test", "busuc:all", "busbra:test"]))
 
     # 5b) authoritative baselines: nnU-Net v2 (same split), MedSAM (box-prompted, zero-shot)
-    nn = group("wevis", [RUNS / "nnunet" / "busi_s0"], TESTS)
+    nn = group("wevis", NN_RUNS, TESTS)
     rep["nnunet"] = nn
     md.append("## 5b. Authoritative baselines on the same split and metric")
     md.append(table("nnU-Net v2 2d (nnUNetTrainer_250epochs, fold 0 = our train/val) vs WeVisOne vs YOLO", [
@@ -500,11 +571,16 @@ def main():
                     ["busuc:all", "busbra:test"]))
     ms_dir = RUNS / "medsam"
     dec = {}
-    for spec in ["busi:test", "uclm:all", "uclm:test", "busuc:all", "busbra:test"]:
+    ft_dir = RUNS / "medsam_ft"
+    ft_ok = (ft_dir / "ALL_DONE").exists()
+    for spec in ["busi:test", "uclm:all", "uclm:test", "busuc:all", "busbra:test", "breast:all"]:
         row = {}
         med = wevis_records(ms_dir, spec, "gt_box")
         if med:
             row["MedSAM, GT boxes"] = summarize(med)["lesion_dice"]
+        ft = wevis_records(ft_dir, spec, "gt_box") if ft_ok else None
+        if ft:
+            row["MedSAM fine-tuned, GT boxes"] = summarize(ft)["lesion_dice"]
         wv = [wevis_records(WEVIS_DIR / f"baseline_s{s}", spec, "gt_box") for s in SEEDS]
         wv = [summarize(r)["lesion_dice"] for r in wv if r]
         if wv:
@@ -515,14 +591,20 @@ def main():
                 continue
             thr = json.loads(rep_y.read_text())["calibrated_threshold"]
             for label, recs in (("MedSAM, YOLO-cal boxes", wevis_records(ms_dir, spec, f"yolo{thr:g}_busi_m_s{s}")),
+                                ("MedSAM fine-tuned, YOLO-cal boxes",
+                                 wevis_records(ft_dir, spec, f"yolo{thr:g}_busi_m_s{s}") if ft_ok else None),
                                 ("WeVisOne decoder, YOLO-cal boxes", hybrid_records(s, spec, "cal"))):
                 if recs:
                     row.setdefault(label, []).append(summarize(recs)["lesion_dice"])
         dec[spec] = {k: (float(np.mean(v)) if isinstance(v, list) else v) for k, v in row.items()}
     rep["decoder_comparison"] = dec
     if any(dec.values()):
-        cols = ["MedSAM, GT boxes", "WeVisOne decoder, GT boxes", "MedSAM, YOLO-cal boxes", "WeVisOne decoder, YOLO-cal boxes"]
-        md += ["### Box-prompted decoders (lesion Dice; MedSAM zero-shot, likely saw BUSI in pre-training)", "",
+        cols = ["MedSAM, GT boxes", "MedSAM fine-tuned, GT boxes", "WeVisOne decoder, GT boxes", "MedSAM, YOLO-cal boxes",
+                "MedSAM fine-tuned, YOLO-cal boxes", "WeVisOne decoder, YOLO-cal boxes"]
+        md += ["### Box-prompted decoders (lesion Dice; MedSAM zero-shot likely saw BUSI in pre-training)", "",
+               "MedSAM fine-tuned = mask decoder only (4.1M params) trained on the same 368 BUSI train images with ±5% "
+               "jittered GT boxes, BCE+Dice, flip, 40 epochs, best busi:val GT-box Dice (medsam_finetune.py); the "
+               "counterpart of the WeVisOne decoder fine-tune. YOLO-cal box columns average seeds 42/43/44.", "",
                "| Set | " + " | ".join(cols) + " |", "|---|" + "---:|" * len(cols)]
         for spec, row in dec.items():
             if row:
@@ -605,11 +687,20 @@ def main():
             md.append(f"| {name}{star} | " + " | ".join(cells) + " |")
         md.append("")
 
+    # 5e) compute cost (bench_cost.py) + training wall-clock from logs
+    md += cost_section(rep)
+
     # 6) paired bootstrap, seed-averaged per image
     boot = {}
     pairs = [("WeVisOne gate vs YOLO cal", "wevis", "baseline_s{s}", "gate", "yolo", "busi_m_s{s}", "cal"),
              ("WeVisOne raw vs YOLO 0.25", "wevis", "baseline_s{s}", "raw", "yolo", "busi_m_s{s}", "0.25"),
-             ("WeVisOne aug gate vs YOLO cal", "wevis", "aug_s{s}", "gate", "yolo", "busi_m_s{s}", "cal")]
+             ("WeVisOne aug gate vs YOLO cal", "wevis", "aug_s{s}", "gate", "yolo", "busi_m_s{s}", "cal"),
+             ("WeVisOne aug gate vs YOLO26m+US-aug cal", "wevis", "aug_s{s}", "gate", "yolo", "busi_maug_s{s}", "cal"),
+             ("WeVisOne gate vs YOLO26x cal", "wevis", "baseline_s{s}", "gate", "yolo", "busi_x_s{s}", "cal"),
+             ("WeVisOne 460 upd gate vs 230 upd gate", "wevis", "long460_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
+             ("WeVisOne 690 upd gate vs 230 upd gate", "wevis", "long690_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
+             ("WeVisOne LoKr gate vs LoRA gate", "wevis", "lokr_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
+             ("WeVisOne LoKr-Automagic3 gate vs LoRA gate", "wevis", "lokr_am3_s{s}", "gate", "wevis", "baseline_s{s}", "gate")]
     for spec in ["uclm:all", "uclm:test", "busuc:all"]:
         for label, ka, na, oa, kb, nb, ob in pairs:
             A = [op_records(ka, (WEVIS_DIR if ka == "wevis" else YOLO_DIR) / na.format(s=s), spec, oa) for s in SEEDS]
@@ -617,9 +708,19 @@ def main():
             A, B = [a for a in A if a], [b for b in B if b]
             if A and B:
                 boot[f"{spec} | {label}"] = paired_bootstrap(A, B)
+    # multi-source with UCLM train patients: only uclm:test is held out
+    A = [op_records("wevis", WEVIS_DIR / f"ms_bra_uclm_s{s}", "uclm:test", "gate_src") for s in SEEDS]
+    B = [op_records("yolo", YOLO_DIR / f"ms_bra_uclm_s{s}", "uclm:test", "cal_src") for s in SEEDS]
+    A, B = [a for a in A if a], [b for b in B if b]
+    if A and B:
+        boot["uclm:test | BUSI+BRA+UCLMtrain WeVisOne per-source gate vs YOLO per-source cal"] = paired_bootstrap(A, B)
     if "wevis" in cv and "yolo" in cv:
         for op_a, op_b in [("gate", "cal"), ("raw", "0.25")]:
             boot[f"BUSI OOF | WeVisOne {op_a} vs YOLO {op_b}"] = paired_bootstrap([cv["wevis"][1][op_a]], [cv["yolo"][1][op_b]])
+    for fam in ("lesion_dice", "fpr"):
+        adj = holm({k: b[f"{fam}_p"] for k, b in boot.items()})
+        for k, b in boot.items():
+            b[f"{fam}_p_holm"] = adj.get(k, float("nan"))
     rep["paired_bootstrap"] = boot
     if boot:
         md += ["## 6. Paired patient-cluster bootstrap (A − B; 5000 resamples)", "",
@@ -629,13 +730,19 @@ def main():
                "Percentile 95% CIs describe patient-sampling uncertainty conditional on these models and thresholds; they exclude "
                "retraining and calibration uncertainty, are not adjusted for multiple comparisons, and do not apply to matched-FPR curves. "
                "Positive ΔFPR is worse for A; positive ΔDice is better for A. UCLM test is a subset of UCLM all, not an independent replication. "
-               "UCLM has patient IDs; BUSI and BUS_UC use available image/duplicate groups as resampling units, not verified patients.", "",
-               "| Comparison | images / resampling units | ΔFPR (pp) [95% CI] | Δ lesion Dice [95% CI] |", "|---|---:|---:|---:|"]
+               "UCLM has patient IDs; BUSI and BUS_UC use available image/duplicate groups as resampling units, not verified patients. "
+               "p = two-sided percentile-bootstrap p (floor 1/5001); Holm = Holm-Bonferroni over all rows of this table, "
+               "separately for the ΔFPR and Δ Dice families. Rows on uclm:all and uclm:test overlap and are not independent, "
+               "which Holm tolerates (it is valid under any dependence) but makes conservative.", "",
+               "| Comparison | images / resampling units | ΔFPR (pp) [95% CI] | ΔFPR Holm p | Δ lesion Dice [95% CI] | ΔDice Holm p |",
+               "|---|---:|---:|---:|---:|---:|"]
         for k, b in boot.items():
             fpr = "–" if np.isnan(b["fpr_diff"]) else f"{100 * b['fpr_diff']:+.1f} [{100 * b['fpr_diff_ci'][0]:+.1f}, {100 * b['fpr_diff_ci'][1]:+.1f}]"
             comparison = k.replace("|", "/")
-            md.append(f"| {comparison} | {b['n_images']} / {b['n_patients']} | {fpr} | "
-                      f"{b['lesion_dice_diff']:+.3f} [{b['lesion_dice_diff_ci'][0]:+.3f}, {b['lesion_dice_diff_ci'][1]:+.3f}] |")
+            fp_h = "–" if np.isnan(b["fpr_p_holm"]) else f"{b['fpr_p_holm']:.3g}"
+            md.append(f"| {comparison} | {b['n_images']} / {b['n_patients']} | {fpr} | {fp_h} | "
+                      f"{b['lesion_dice_diff']:+.3f} [{b['lesion_dice_diff_ci'][0]:+.3f}, {b['lesion_dice_diff_ci'][1]:+.3f}] | "
+                      f"{b['lesion_dice_p_holm']:.3g} |")
         md.append("")
     conclusion = main_conclusions(rep)
     md[2:2] = [conclusion, ""]
@@ -645,10 +752,72 @@ def main():
     print("\n".join(md))
 
 
+def _train_seconds():
+    """Wall-clock training seconds per model family (seeds as available). Logs come from a shared serial queue;
+    some runs overlapped with other GPU jobs, so treat as upper bounds."""
+    import csv
+    import datetime as dt
+    out = {}
+    w = []
+    for d in [RUNS / "lora_decoder"] + [RUNS / "sweep" / f"A_seed{s}" for s in (43, 44)]:
+        h = d / "history.csv"
+        if h.exists():
+            rows = list(csv.DictReader(h.open(encoding="utf-8")))
+            w.append(float(rows[-1]["seconds"]))
+    out["wevis"] = w
+    for name, pat in [("yolo", "busi_m_s{s}"), ("yolo_aug", "busi_maug_s{s}"), ("yolo_x", "busi_x_s{s}")]:
+        v = []
+        for s in SEEDS:
+            f = YOLO_DIR / pat.format(s=s) / "results.csv"
+            done = YOLO_DIR / pat.format(s=s) / ("TRAIN_DONE" if name != "yolo" else "weights/best.pt")
+            if f.exists() and done.exists():
+                rows = list(csv.DictReader(f.open(encoding="utf-8")))
+                v.append(float(rows[-1]["time"]))
+        out[name] = v
+    nn = []
+    for log in sorted((common.ROOT / "nnunet/results/Dataset501_BUSIclean/nnUNetTrainer_250epochs__nnUNetPlans__2d").glob("fold_*/training_log_*.txt")):
+        ts = [ln[:26] for ln in log.read_text(encoding="utf-8", errors="ignore").splitlines() if ln[:4].isdigit() and ": " in ln[:30]]
+        if "Training done" in log.read_text(encoding="utf-8", errors="ignore") and len(ts) > 1:
+            f = lambda t: dt.datetime.strptime(t.strip(), "%Y-%m-%d %H:%M:%S.%f")  # noqa: E731
+            nn.append((f(ts[-1]) - f(ts[0])).total_seconds())
+    out["nnunet"] = nn
+    return out
+
+
+def cost_section(rep):
+    cost = {m: json.loads((OUT / f"cost_{m}.json").read_text()) for m in ("wevis", "yolo", "nnunet") if (OUT / f"cost_{m}.json").exists()}
+    if not cost:
+        return []
+    tr = _train_seconds()
+    rep["cost"] = dict(inference=cost, train_seconds=tr)
+    mins = lambda v: "–" if not v else (f"{np.median(v) / 60:.0f} min" + (f" ({min(v) / 60:.0f}–{max(v) / 60:.0f}, n={len(v)})" if len(v) > 1 else ""))  # noqa: E731
+    label = {"wevis": ("WeVisOne-VL-4B + LoRA + decoder", "230 updates, eff. batch 8, 5 val passes"),
+             "yolo": ("YOLO26m-seg", "≤150 epochs, early stop 40"), "nnunet": ("nnU-Net v2 2d", "250 epochs")}
+    md = ["## 5e. Compute cost (one RTX 4090, batch 1, first 60 BUSI test images after 5 warm-up)", "",
+          "Latency is the full inference path used in this report: WeVisOne = presence forward (gate) + greedy generate + "
+          "mask decode; YOLO = predict(imgsz 640, retina masks) incl. pre/post-processing; nnU-Net = predict_single_npy_array "
+          "with default mirroring TTA. Peak VRAM = torch peak allocated during inference (weights included). Training "
+          "wall-clock comes from the logs of a shared serial queue; some runs overlapped with other GPU jobs, so read as upper bounds.", "",
+          "| Model | params | latency ms (median / p95) | images/s | peak VRAM GB | training wall-clock (median, range) | training budget |",
+          "|---|---:|---:|---:|---:|---:|---|"]
+    for m, c in cost.items():
+        md.append(f"| {label[m][0]} | {c['params'] / 1e6:,.0f}M | {c['latency_ms_median']:.0f} / {c['latency_ms_p95']:.0f} | "
+                  f"{c['images_per_s']:.1f} | {c['peak_vram_gb']:.2f} | {mins(tr.get(m))} | {label[m][1]} |")
+    for m, lab in (("yolo_aug", "YOLO26m-seg + US strong aug"), ("yolo_x", "YOLO26x-seg")):
+        if tr.get(m):
+            md.append(f"| {lab} | – | – | – | – | {mins(tr[m])} | ≤150 epochs, early stop 40 |")
+    md.append("")
+    return md
+
+
 def main_conclusions(rep):
     """Keep the main statistical claims tied to the appropriate estimand."""
     lines = ["## 主要統計結論與適用範圍", "",
-             "主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。", ""]
+             "主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。",
+             "",
+             "**正常影像 FPR 的樣本量限制**：BUSI test 只有 10 張正常影像（1 張 = 10 個百分點；例如 4/10 的 95% Wilson 區間約 17%–69%），"
+             "BUSI val 也只有 13 張，因此 BUSI test 的 FPR 差異不可解讀為模型差異，val 校準門檻本身亦不穩定"
+             "（max over 13 normals）。FPR 結論應以 UCLM（test 188／all 419 張正常影像）與 BUSI 5-fold OOF（72 張）為主。", ""]
     for spec in ("uclm:test", "uclm:all"):
         b = rep["paired_bootstrap"].get(f"{spec} | WeVisOne gate vs YOLO cal")
         if not b:
@@ -660,8 +829,33 @@ def main_conclusions(rep):
                      f"{b['lesion_dice_diff']:+.3f}（95% CI {b['lesion_dice_diff_ci'][0]:+.3f} 至 {b['lesion_dice_diff_ci'][1]:+.3f}）；"
                      f"正常影像 FPR 差 {100*b['fpr_diff']:+.1f} 個百分點（95% CI {100*lo:+.1f} 至 {100*hi:+.1f}），{fpr_claim}。"
                      "這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。")
+    b = rep["paired_bootstrap"].get("uclm:test | BUSI+BRA+UCLMtrain WeVisOne per-source gate vs YOLO per-source cal")
+    if b:
+        lo, hi = b["fpr_diff_ci"]; dlo, dhi = b["lesion_dice_diff_ci"]
+        dclaim = "WeVisOne 較高" if dlo > 0 else ("YOLO 較高" if dhi < 0 else "區間跨過 0")
+        lines.append(f"- **多來源訓練（BUSI+BRA+UCLM train 病人），uclm:test，各來源自身 val 校準**：WeVisOne − YOLO 病灶 Dice 差 "
+                     f"{b['lesion_dice_diff']:+.3f}（95% CI {dlo:+.3f} 至 {dhi:+.3f}，{dclaim}）；FPR 差 {100*b['fpr_diff']:+.1f} 個百分點"
+                     f"（95% CI {100*lo:+.1f} 至 {100*hi:+.1f}；Dice Holm p = {b.get('lesion_dice_p_holm', float('nan')):.3g}）。目標站點資料納入訓練後，"
+                     + ("WeVisOne 在 BUSI-only 設定下的外部優勢反轉為 YOLO 較佳；" if dhi < 0 else
+                        "WeVisOne 在 BUSI-only 設定下的外部優勢不再成立；" if dlo <= 0 else "WeVisOne 仍較佳；") +
+                     "原本的合併 val 門檻（max over 73 normals）被單一 BUSI 正常影像決定，使 UCLM 病灶 miss 達 65%，屬校準失敗而非模型失敗（見第 5 節）。")
+    for label, txt in (("WeVisOne aug gate vs YOLO26m+US-aug cal", "YOLO26m 加上與 WeVisOne 相同的超音波強增強"),
+                       ("WeVisOne gate vs YOLO26x cal", "最大尺寸 YOLO26x-seg")):
+        b = rep["paired_bootstrap"].get(f"uclm:test | {label}")
+        if b:
+            dlo, dhi = b["lesion_dice_diff_ci"]
+            lines.append(f"- **YOLO 調參對等性，uclm:test，{txt}**：WeVisOne − YOLO 病灶 Dice 差 {b['lesion_dice_diff']:+.3f}"
+                         f"（95% CI {dlo:+.3f} 至 {dhi:+.3f}，Holm p = {b['lesion_dice_p_holm']:.3g}）；FPR 差 {100*b['fpr_diff']:+.1f} 個百分點"
+                         f"（95% CI {100*b['fpr_diff_ci'][0]:+.1f} 至 {100*b['fpr_diff_ci'][1]:+.1f}）。"
+                         + ("BUSI-only 的外部優勢在此 YOLO 變體下仍成立。" if dlo > 0 else "此 YOLO 變體下 WeVisOne 優勢不顯著。"))
+    c = rep.get("cost", {}).get("inference", {})
+    if "wevis" in c and "yolo" in c:
+        w, y = c["wevis"], c["yolo"]
+        lines.append(f"- **計算成本**：WeVisOne {w['params']/1e9:.1f}B 參數、每張 {w['latency_ms_median']:.0f} ms、峰值 VRAM {w['peak_vram_gb']:.1f} GB；"
+                     f"YOLO26m {y['params']/1e6:.0f}M 參數、每張 {y['latency_ms_median']:.0f} ms、{y['peak_vram_gb']:.2f} GB"
+                     f"（RTX 4090, batch 1）。WeVisOne 慢約 {w['latency_ms_median']/y['latency_ms_median']:.0f} 倍，準確度優勢須與此成本一併評估（見 5e）。")
     lines += ["", "bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；"
-              "每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準，也未作多重比較校正。", ""]
+              "每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準。95% CI 未作多重比較調整；第 6 節另列 Holm-Bonferroni 校正後的 p 值（對全表所有比較）。", ""]
     for spec in ("uclm:test", "uclm:all"):
         curves = rep.get("matched_fpr", {}).get(spec, {})
         wa = curves.get("WeVisOne (presence gate)", {})

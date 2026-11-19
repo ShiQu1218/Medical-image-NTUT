@@ -1,0 +1,12 @@
+{
+  "model": "wevis",
+  "params": 4840191012,
+  "n_images": 60,
+  "latency_ms_mean": 731.455331670198,
+  "latency_ms_median": 728.9630500017665,
+  "latency_ms_p95": 792.418605016428,
+  "images_per_s": 1.3671374815419142,
+  "peak_vram_gb": 11.144802570343018,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "trainable_finetune_params": "LoRA r16 33M + decoder 9.6M (merged at inference)"
+}

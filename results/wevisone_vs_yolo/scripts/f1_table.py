@@ -13,7 +13,7 @@ import analyze as A
 MODELS = [("WeVisOne", "wevis", [A.WEVIS_DIR / f"baseline_s{s}" for s in A.SEEDS], ("raw", "gate")),
           ("WeVisOne strong-aug", "wevis", [A.WEVIS_DIR / f"aug_s{s}" for s in A.SEEDS], ("raw", "gate")),
           ("YOLO26m-seg", "yolo", [A.YOLO_DIR / f"busi_m_s{s}" for s in A.SEEDS], ("0.25", "cal")),
-          ("nnU-Net v2 2d", "wevis", [A.RUNS / "nnunet" / "busi_s0"], ("raw", "gate"))]
+          ("nnU-Net v2 2d", "wevis", A.NN_RUNS, ("raw", "gate"))]
 
 
 def is_hit(r, min_iou=None):

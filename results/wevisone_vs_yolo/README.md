@@ -1,15 +1,21 @@
 # WeVisOne-VL-4B 與 YOLO、nnU-Net、MedSAM 的乳房超音波病灶分割比較
 
-> 狀態：2026-11-16 統計與定位指標修訂；少量資料完整 run 9/9。完成狀態見 [low_data_status.json](low_data_status.json)。
+> 狀態：2026-11-16 統計與定位指標修訂；少量資料完整 run 9/9。完成狀態見 [low_data_status.json](low_data_status.json)。 2026-11-19 補充公平性與訓練設定實驗（第 17b 節）；LoKr + Automagic3 仍在訓練。
 
 ## 結論
 
 主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。
 
+**正常影像 FPR 的樣本量限制**：BUSI test 只有 10 張正常影像（1 張 = 10 個百分點；例如 4/10 的 95% Wilson 區間約 17%–69%），BUSI val 也只有 13 張，因此 BUSI test 的 FPR 差異不可解讀為模型差異，val 校準門檻本身亦不穩定（max over 13 normals）。FPR 結論應以 UCLM（test 188／all 419 張正常影像）與 BUSI 5-fold OOF（72 張）為主。
+
 - **固定門檻 bootstrap，uclm:test**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.202（95% CI +0.116 至 +0.313）；正常影像 FPR 差 +5.7 個百分點（95% CI -0.3 至 +12.5），區間跨過 0，無法判定正常影像 FPR 有差異。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
 - **固定門檻 bootstrap，uclm:all**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.227（95% CI +0.169 至 +0.295）；正常影像 FPR 差 +6.1 個百分點（95% CI +1.3 至 +11.1），WeVisOne 的正常影像 FPR 較高。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
+- **多來源訓練（BUSI+BRA+UCLM train 病人），uclm:test，各來源自身 val 校準**：WeVisOne − YOLO 病灶 Dice 差 -0.093（95% CI -0.145 至 -0.033，YOLO 較高）；FPR 差 -2.0 個百分點（95% CI -5.5 至 +1.3；Dice Holm p = 0.0252）。目標站點資料納入訓練後，WeVisOne 在 BUSI-only 設定下的外部優勢反轉為 YOLO 較佳；原本的合併 val 門檻（max over 73 normals）被單一 BUSI 正常影像決定，使 UCLM 病灶 miss 達 65%，屬校準失敗而非模型失敗（見第 5 節）。
+- **YOLO 調參對等性，uclm:test，YOLO26m 加上與 WeVisOne 相同的超音波強增強**：WeVisOne − YOLO 病灶 Dice 差 +0.106（95% CI +0.025 至 +0.201，Holm p = 0.08）；FPR 差 +4.3 個百分點（95% CI -0.8 至 +10.2）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
+- **YOLO 調參對等性，uclm:test，最大尺寸 YOLO26x-seg**：WeVisOne − YOLO 病灶 Dice 差 +0.186（95% CI +0.098 至 +0.300，Holm p = 0.0054）；FPR 差 +1.1 個百分點（95% CI -4.2 至 +7.3）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
+- **計算成本**：WeVisOne 4.8B 參數、每張 729 ms、峰值 VRAM 11.1 GB；YOLO26m 27M 參數、每張 10 ms、0.25 GB（RTX 4090, batch 1）。WeVisOne 慢約 76 倍，準確度優勢須與此成本一併評估（見 5e）。
 
-bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準，也未作多重比較校正。
+bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準。95% CI 未作多重比較調整；第 6 節另列 Holm-Bonferroni 校正後的 p 值（對全表所有比較）。
 
 - **測試集操作曲線，uclm:test，FPR ≤ 10%**：病灶 Dice 為 WeVisOne 0.698 ± 0.022、YOLO 0.504 ± 0.026（跨 seed mean ± SD）。各模型實際 FPR 為 9.6 ± 0.0%／9.4 ± 0.3%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。
 - **測試集操作曲線，uclm:all，FPR ≤ 10%**：病灶 Dice 為 WeVisOne 0.582 ± 0.006、YOLO 0.363 ± 0.004（跨 seed mean ± SD）。各模型實際 FPR 為 9.6 ± 0.3%／9.8 ± 0.0%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。
@@ -108,10 +114,10 @@ nnU-Net 在 BUSI 內部與 WeVisOne 幾乎相同，但外部正常影像誤報�
 |---|---|---|---|---|
 | uclm:all | WeVisOne (presence gate) | 0.527 ± 0.014 / 29.9 ± 2.8 | 0.582 ± 0.006 / 20.9 ± 2.1 | 0.603 ± 0.011 / 17.9 ± 1.2 |
 | uclm:all | YOLO (conf threshold) | 0.324 ± 0.002 / 64.2 ± 0.7 | 0.363 ± 0.004 / 58.8 ± 1.2 | 0.405 ± 0.017 / 53.1 ± 1.7 |
-| uclm:all | nnU-Net (max-prob gate) | 0.160 / 81.2 | 0.253 / 68.8 | 0.315 / 60.0 |
+| uclm:all | nnU-Net (max-prob gate) | 0.173 ± 0.015 / 78.8 ± 2.3 | 0.250 ± 0.008 / 69.1 ± 0.8 | 0.300 ± 0.022 / 61.7 ± 3.6 |
 | uclm:test | WeVisOne (presence gate) | 0.658 ± 0.010 / 18.4 ± 1.6 | 0.698 ± 0.022 / 12.8 ± 2.5 | 0.710 ± 0.019 / 10.7 ± 2.1 |
 | uclm:test | YOLO (conf threshold) | 0.476 ± 0.023 / 47.6 ± 3.5 | 0.504 ± 0.026 / 44.1 ± 3.5 | 0.540 ± 0.036 / 38.9 ± 4.0 |
-| uclm:test | nnU-Net (max-prob gate) | 0.314 / 63.6 | 0.386 / 55.2 | 0.429 / 48.3 |
+| uclm:test | nnU-Net (max-prob gate) | 0.300 ± 0.015 / 64.3 ± 0.7 | 0.373 ± 0.014 / 55.0 ± 1.1 | 0.420 ± 0.032 / 47.8 ± 4.9 |
 
 各點實際 FPR 與所選門檻見 [report.json](report.json) 的 `matched_fpr` 欄位。
 
@@ -126,12 +132,28 @@ nnU-Net 在 BUSI 內部與 WeVisOne 幾乎相同，但外部正常影像誤報�
 | uclm:all / WeVisOne gate vs YOLO cal | 679 / 38 | +6.1 [+1.3, +11.1] | +0.227 [+0.169, +0.295] |
 | uclm:all / WeVisOne raw vs YOLO 0.25 | 679 / 38 | -22.8 [-27.9, -17.3] | +0.135 [+0.080, +0.198] |
 | uclm:all / WeVisOne aug gate vs YOLO cal | 679 / 38 | -0.9 [-5.0, +3.5] | +0.192 [+0.133, +0.259] |
+| uclm:all / WeVisOne aug gate vs YOLO26m+US-aug cal | 679 / 38 | +4.1 [+0.1, +8.6] | +0.118 [+0.063, +0.177] |
+| uclm:all / WeVisOne gate vs YOLO26x cal | 679 / 38 | -0.8 [-6.1, +5.4] | +0.206 [+0.142, +0.277] |
+| uclm:all / WeVisOne 460 upd gate vs 230 upd gate | 679 / 38 | -0.4 [-2.1, +1.2] | +0.007 [-0.019, +0.032] |
+| uclm:all / WeVisOne 690 upd gate vs 230 upd gate | 679 / 38 | -4.1 [-6.0, -2.4] | +0.003 [-0.022, +0.031] |
+| uclm:all / WeVisOne LoKr gate vs LoRA gate | 679 / 38 | +6.8 [+4.2, +9.6] | -0.022 [-0.041, -0.004] |
 | uclm:test / WeVisOne gate vs YOLO cal | 331 / 18 | +5.7 [-0.3, +12.5] | +0.202 [+0.116, +0.313] |
 | uclm:test / WeVisOne raw vs YOLO 0.25 | 331 / 18 | -22.5 [-29.3, -15.6] | +0.133 [+0.050, +0.238] |
 | uclm:test / WeVisOne aug gate vs YOLO cal | 331 / 18 | -0.4 [-5.4, +6.1] | +0.184 [+0.096, +0.300] |
+| uclm:test / WeVisOne aug gate vs YOLO26m+US-aug cal | 331 / 18 | +4.3 [-0.8, +10.2] | +0.106 [+0.025, +0.201] |
+| uclm:test / WeVisOne gate vs YOLO26x cal | 331 / 18 | +1.1 [-4.2, +7.3] | +0.186 [+0.098, +0.300] |
+| uclm:test / WeVisOne 460 upd gate vs 230 upd gate | 331 / 18 | -0.7 [-3.6, +2.4] | +0.006 [-0.033, +0.040] |
+| uclm:test / WeVisOne 690 upd gate vs 230 upd gate | 331 / 18 | -3.7 [-7.1, -1.0] | +0.004 [-0.020, +0.029] |
+| uclm:test / WeVisOne LoKr gate vs LoRA gate | 331 / 18 | +9.0 [+5.2, +13.4] | -0.018 [-0.042, -0.002] |
 | busuc:all / WeVisOne gate vs YOLO cal | 811 / 811 | – | +0.378 [+0.352, +0.403] |
 | busuc:all / WeVisOne raw vs YOLO 0.25 | 811 / 811 | – | +0.254 [+0.234, +0.275] |
 | busuc:all / WeVisOne aug gate vs YOLO cal | 811 / 811 | – | +0.321 [+0.296, +0.345] |
+| busuc:all / WeVisOne aug gate vs YOLO26m+US-aug cal | 811 / 811 | – | +0.314 [+0.292, +0.336] |
+| busuc:all / WeVisOne gate vs YOLO26x cal | 811 / 811 | – | +0.294 [+0.273, +0.316] |
+| busuc:all / WeVisOne 460 upd gate vs 230 upd gate | 811 / 811 | – | -0.004 [-0.008, +0.001] |
+| busuc:all / WeVisOne 690 upd gate vs 230 upd gate | 811 / 811 | – | -0.022 [-0.027, -0.016] |
+| busuc:all / WeVisOne LoKr gate vs LoRA gate | 811 / 811 | – | -0.008 [-0.014, -0.003] |
+| uclm:test / BUSI+BRA+UCLMtrain WeVisOne per-source gate vs YOLO per-source cal | 331 / 18 | -2.0 [-5.5, +1.3] | -0.093 [-0.145, -0.033] |
 | BUSI OOF / WeVisOne gate vs YOLO cal | 529 / 529 | +6.9 [-2.7, +16.9] | +0.061 [+0.030, +0.090] |
 | BUSI OOF / WeVisOne raw vs YOLO 0.25 | 529 / 529 | +8.3 [-5.4, +21.7] | +0.069 [+0.044, +0.095] |
 
@@ -431,6 +453,35 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 - BUSI 外部 Dice 0.635，高於 CMT-BUSNet 報告的 nnU-Net 0.558，量級相近。差異可能來自前處理、評分方式（per-image vs pooled）或 BUSI 版本。
 - 只用沒有正常影像的資料訓練，nnU-Net 幾乎對每張 UCLM 正常影像都會輸出前景（418/419）。如果只報告病灶 Dice，這個問題完全看不到。
 - 在 BUS-BRA 測試上，它的 Dice 0.892 高於 BUSI + BUS-BRA 多來源的 WeVisOne（0.867）與 YOLO（0.863）。
+
+## 17b. 2026-11-19 補充實驗（公平性與訓練設定）
+
+完整數字見 [REPORT.md](REPORT.md)（第 1、5b、5e、6 節）。配對 bootstrap 為病人群集、5,000 次，p 值經 Holm 校正。
+
+**YOLO 調參對等性**（uclm:test，WeVisOne gate − YOLO val-cal 的病灶 Dice）
+- 對 YOLO26x-seg：+0.186 [+0.098, +0.300]，Holm p = 0.005。
+- 對 YOLO26m + 超音波強增強（gamma／斑點雜訊／模糊／解析度下降，`us_aug.py`）：+0.106 [+0.025, +0.201]，Holm p = 0.08；uclm:all 為 +0.118，p = 0.005。
+- 增強讓 YOLO 進步，但 BUSI-only 的外部優勢仍在；YOLO26x 沒有比 26m 好。
+
+**nnU-Net 補到 3 seeds**：raw 的 UCLM test FPR 約 74%，val 校準 gate 後漏判約 85%，結論不變。
+
+**MedSAM 微調 mask decoder**（4.1M 參數，同 368 張 BUSI train）：GT 框下與 WeVisOne decoder 相當（uclm:all 0.917 vs 0.908；busi:test 0.925 vs 0.919），YOLO 框下也相當（uclm:test 0.505 vs 0.513）。WeVisOne 的優勢在偵測，不在給定框後的 mask 品質。
+
+**較長訓練**（LoRA + AdamW，cosine 依總步數拉長；與 230 步比）
+- 460 步：FPR 與 Dice 皆無顯著差異。
+- 690 步：uclm:test FPR −3.7pp（p = 0.039），Dice 無差異；BUS_UC Dice −0.022（p = 0.005）。
+- loss 仍在下降，但病灶 Dice 沒有提升；230 步大致足夠。
+
+**LoKr（PEFT LoKr r16，1.2M 參數，約 LoRA 的 1/28）+ AdamW**：起始 LR 只用 BUSI val 從 1e-4／3e-4／1e-3 選出 1e-3。與 LoRA 比，uclm:test Dice −0.018（Holm 後不顯著）、FPR +9.0pp（p = 0.004），且 seed 間 FPR 變異大。
+
+**LoKr + Automagic3 + constant（起始 LR 1e-4）**：訓練中，完成後更新。Automagic3 取自 ostris/ai-toolkit（commit `cfdc903`，MIT），未修改，放在 `scripts/third_party/`。
+
+**其他新增**
+- 依良惡性與病灶大小分層：[STRATIFIED.md](STRATIFIED.md)。
+- WeVisOne 定位 → YOLO 畫 mask 的混合：[HYBRID_WLOC_YSEG.md](HYBRID_WLOC_YSEG.md)。比 YOLO 單獨好（uclm:test +0.190），但不如 WeVisOne 單獨。
+- 規則挑選的定性比較圖：[uclm:test](fig_vlm_vs_yolo_uclm_test.png)、[busi:test](fig_vlm_vs_yolo_busi_test.png)。
+- 訓練 loss 與 LR 曲線：[baseline](fig_training_lr_baseline.png)、[strong-aug](fig_training_lr_aug.png)、[多來源](fig_training_lr_ms_bra_uclm.png)。
+- 推論成本：`cost_*.json`。WeVisOne 延遲是在 GPU 有其他工作時量的，偏保守，之後重測。
 
 ## 18. 對審稿意見的逐點回覆
 

@@ -2,10 +2,16 @@
 
 主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。
 
+**正常影像 FPR 的樣本量限制**：BUSI test 只有 10 張正常影像（1 張 = 10 個百分點；例如 4/10 的 95% Wilson 區間約 17%–69%），BUSI val 也只有 13 張，因此 BUSI test 的 FPR 差異不可解讀為模型差異，val 校準門檻本身亦不穩定（max over 13 normals）。FPR 結論應以 UCLM（test 188／all 419 張正常影像）與 BUSI 5-fold OOF（72 張）為主。
+
 - **固定門檻 bootstrap，uclm:test**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.202（95% CI +0.116 至 +0.313）；正常影像 FPR 差 +5.7 個百分點（95% CI -0.3 至 +12.5），區間跨過 0，無法判定正常影像 FPR 有差異。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
 - **固定門檻 bootstrap，uclm:all**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.227（95% CI +0.169 至 +0.295）；正常影像 FPR 差 +6.1 個百分點（95% CI +1.3 至 +11.1），WeVisOne 的正常影像 FPR 較高。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
+- **多來源訓練（BUSI+BRA+UCLM train 病人），uclm:test，各來源自身 val 校準**：WeVisOne − YOLO 病灶 Dice 差 -0.093（95% CI -0.145 至 -0.033，YOLO 較高）；FPR 差 -2.0 個百分點（95% CI -5.5 至 +1.3；Dice Holm p = 0.0252）。目標站點資料納入訓練後，WeVisOne 在 BUSI-only 設定下的外部優勢反轉為 YOLO 較佳；原本的合併 val 門檻（max over 73 normals）被單一 BUSI 正常影像決定，使 UCLM 病灶 miss 達 65%，屬校準失敗而非模型失敗（見第 5 節）。
+- **YOLO 調參對等性，uclm:test，YOLO26m 加上與 WeVisOne 相同的超音波強增強**：WeVisOne − YOLO 病灶 Dice 差 +0.106（95% CI +0.025 至 +0.201，Holm p = 0.08）；FPR 差 +4.3 個百分點（95% CI -0.8 至 +10.2）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
+- **YOLO 調參對等性，uclm:test，最大尺寸 YOLO26x-seg**：WeVisOne − YOLO 病灶 Dice 差 +0.186（95% CI +0.098 至 +0.300，Holm p = 0.0054）；FPR 差 +1.1 個百分點（95% CI -4.2 至 +7.3）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
+- **計算成本**：WeVisOne 4.8B 參數、每張 729 ms、峰值 VRAM 11.1 GB；YOLO26m 27M 參數、每張 10 ms、0.25 GB（RTX 4090, batch 1）。WeVisOne 慢約 76 倍，準確度優勢須與此成本一併評估（見 5e）。
 
-bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準，也未作多重比較校正。
+bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準。95% CI 未作多重比較調整；第 6 節另列 Holm-Bonferroni 校正後的 p 值（對全表所有比較）。
 
 - **測試集操作曲線，uclm:test，FPR ≤ 10%**：病灶 Dice 為 WeVisOne 0.698 ± 0.022、YOLO 0.504 ± 0.026（跨 seed mean ± SD）。各模型實際 FPR 為 9.6 ± 0.0%／9.4 ± 0.3%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。
 - **測試集操作曲線，uclm:all，FPR ≤ 10%**：病灶 Dice 為 WeVisOne 0.582 ± 0.006、YOLO 0.363 ± 0.004（跨 seed mean ± SD）。各模型實際 FPR 為 9.6 ± 0.3%／9.8 ± 0.0%；這是相同 FPR 上限下的比較，實際 FPR 不必相等。

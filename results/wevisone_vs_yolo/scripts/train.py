@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from peft import LoraConfig, get_peft_model
+from peft import LoKrConfig, LoraConfig, get_peft_model
 from PIL import Image
 
 import common
@@ -153,6 +153,15 @@ def main():
     ap.add_argument("--lr_lora", type=float, default=1e-4)
     ap.add_argument("--lr_decoder", type=float, default=3e-5)
     ap.add_argument("--rank", type=int, default=16)
+    ap.add_argument("--adapter", choices=["lora", "lokr"], default="lora",
+                    help="lokr: PEFT LoKr (Kronecker) on the same target modules; --rank = LoKr r, alpha = r; lr from --lr_lora")
+    ap.add_argument("--lokr_factor", type=int, default=-1, help="LoKr decompose_factor (-1 = PEFT default)")
+    ap.add_argument("--lokr_decompose_both", action="store_true")
+    ap.add_argument("--optimizer", choices=["adamw", "automagic3"], default="adamw",
+                    help="automagic3: ostris ai-toolkit Automagic3 (third_party/), fused=False for grad accumulation; "
+                         "--lr_lora/--lr_decoder are the START lrs of its two param groups, adapted by the optimizer")
+    ap.add_argument("--schedule", choices=["cosine", "constant"], default="cosine",
+                    help="cosine: 5%% warmup + cosine to 0 (default). constant: no external schedule (required for automagic3)")
     ap.add_argument("--seg_weight", type=float, default=1.0)
     ap.add_argument("--box_jitter", type=float, default=0.05)
     ap.add_argument("--max_steps", type=int, default=0, help="debug: stop after N optimizer steps")
@@ -197,13 +206,16 @@ def main():
         from peft import PeftModel
         peft_model = PeftModel.from_pretrained(model, args.init_lora, is_trainable=True)
     else:
-        peft_model = get_peft_model(model, LoraConfig(r=args.rank, lora_alpha=2 * args.rank, lora_dropout=0.05,
-                                         target_modules=LORA_TARGETS))
+        cfg = (LoraConfig(r=args.rank, lora_alpha=2 * args.rank, lora_dropout=0.05, target_modules=LORA_TARGETS)
+               if args.adapter == "lora" else
+               LoKrConfig(r=args.rank, alpha=args.rank, decompose_factor=args.lokr_factor,
+                          decompose_both=args.lokr_decompose_both, target_modules=LORA_TARGETS))
+        peft_model = get_peft_model(model, cfg)
     if args.init_decoder:
         engine.mask_decoder.load_state_dict(torch.load(args.init_decoder, map_location='cpu', weights_only=True))
     model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     model.enable_input_require_grads()
-    lora_params = [p for n, p in model.named_parameters() if "lora_" in n]
+    lora_params = [p for n, p in model.named_parameters() if "lora_" in n or "lokr_" in n]  # adapter params
     for p in lora_params:
         p.requires_grad_(True)
     decoder = engine.mask_decoder.float()
@@ -216,17 +228,28 @@ def main():
     total = args.max_steps or args.total_steps or steps_per_epoch * args.epochs
     print(f"train {args.train_spec}: {len(rows)} imgs, val {args.val_spec}: {len(val_rows)}, "
           f"{args.epochs} epochs, {total} updates, val at {sorted(val_epochs)}", flush=True)
-    opt = torch.optim.AdamW([
-        {"params": lora_params, "lr": args.lr_lora},
-        {"params": list(decoder.parameters()), "lr": args.lr_decoder},
-    ], weight_decay=0.0)
+    groups = [{"params": lora_params, "lr": args.lr_lora}, {"params": list(decoder.parameters()), "lr": args.lr_decoder}]
+    if args.optimizer == "automagic3":
+        if args.schedule != "constant":
+            ap.error("automagic3 adapts its own lr; use --schedule constant")
+        from third_party.automagic3 import Automagic3
+        opt = Automagic3(groups, fused=False)
+    else:
+        opt = torch.optim.AdamW(groups, weight_decay=0.0)
     warmup = max(1, int(0.05 * total))
     sched = torch.optim.lr_scheduler.LambdaLR(
-        opt, lambda s: min(1.0, (s + 1) / warmup) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / total))))
+        opt, (lambda s: 1.0) if args.schedule == "constant" else
+        (lambda s: min(1.0, (s + 1) / warmup) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / total)))))
+
+    def current_lrs():  # lr actually applied at the last update (Automagic3 keeps its adapted lr in state)
+        if hasattr(opt, "get_learning_rates"):
+            return opt.get_learning_rates()
+        return [g["lr"] for g in opt.param_groups]
 
     log = (out / "history.csv").open("a", newline="")
     writer = csv.writer(log)
-    writer.writerow(["epoch", "step", "lm_loss", "seg_loss", "val_dice", "val_lesion_dice", "val_normal_fp", "seconds"])
+    writer.writerow(["epoch", "step", "lm_loss", "seg_loss", "val_dice", "val_lesion_dice", "val_normal_fp", "seconds",
+                     "lr_adapter", "lr_decoder"])
     best, step, started = -1.0, 0, time.perf_counter()
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -245,7 +268,9 @@ def main():
             ((lm_loss + args.seg_weight * seg_loss) / args.accum).backward()
             lm_acc, seg_acc, n_acc = lm_acc + lm_loss.item(), seg_acc + seg_loss.item(), n_acc + 1
             if (i + 1) % args.accum == 0 or i + 1 == len(epoch_rows):
-                torch.nn.utils.clip_grad_norm_(lora_params + list(decoder.parameters()), 1.0)
+                if args.optimizer == "adamw":  # Automagic3 has its own trust region (update RMS/element clip)
+                    torch.nn.utils.clip_grad_norm_(lora_params + list(decoder.parameters()), 1.0)
+                lr_used = current_lrs()
                 opt.step()
                 sched.step()
                 opt.zero_grad(set_to_none=True)
@@ -253,7 +278,8 @@ def main():
                 if step % 5 == 0:
                     print(f"ep{epoch} step{step}/{total} lm={lm_acc / n_acc:.4f} seg={seg_acc / n_acc:.4f} "
                           f"{time.perf_counter() - started:.0f}s", flush=True)
-                    writer.writerow([epoch, step, lm_acc / n_acc, seg_acc / n_acc, "", "", "", round(time.perf_counter() - started)])
+                    writer.writerow([epoch, step, lm_acc / n_acc, seg_acc / n_acc, "", "", "", round(time.perf_counter() - started),
+                                     lr_used[0], lr_used[1]])
                     log.flush()
                     lm_acc, seg_acc, n_acc = 0.0, 0.0, 0
                 if (args.max_steps and step >= args.max_steps) or step >= total:

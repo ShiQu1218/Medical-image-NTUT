@@ -1,0 +1,11 @@
+{
+  "model": "nnunet",
+  "params": 46324558,
+  "n_images": 60,
+  "latency_ms_mean": 103.69637500455913,
+  "latency_ms_median": 84.10664997063577,
+  "latency_ms_p95": 151.69456499861553,
+  "images_per_s": 9.643538647865308,
+  "peak_vram_gb": 0.42404985427856445,
+  "gpu": "NVIDIA GeForce RTX 4090"
+}

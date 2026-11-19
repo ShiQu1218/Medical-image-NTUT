@@ -53,12 +53,16 @@ def main():
     ap.add_argument("--modes", default="gt_box")
     ap.add_argument("--out", default=str(common.RUNS / "medsam"))
     ap.add_argument("--limit", type=int, default=0, help="smoke test: first N items only")
+    ap.add_argument("--decoder", default=None, help="fine-tuned mask_decoder state dict (medsam_finetune.py)")
     args = ap.parse_args()
     from transformers import SamModel
     model = SamModel.from_pretrained("wanglab/medsam-vit-base").cuda().eval()
+    if args.decoder:
+        model.mask_decoder.load_state_dict(torch.load(args.decoder, map_location="cpu", weights_only=True), strict=True)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "args.json").write_text(json.dumps(dict(model="wanglab/medsam-vit-base", val_spec="busi:val"), indent=2))
+    (out / "eval_args.json" if args.decoder else out / "args.json").write_text(
+        json.dumps(dict(model="wanglab/medsam-vit-base", val_spec="busi:val", decoder=args.decoder), indent=2))
     for spec in args.sets.split(","):
         for mode in args.modes.split(","):
             yolo, tag = None, mode
