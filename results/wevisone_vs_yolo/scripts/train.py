@@ -36,6 +36,8 @@ from wevisone_vl.feature_bridge import (
 )
 
 LORA_TARGETS = r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)"
+# --vit_lora: also the 24 ViT blocks (attn qkv/proj, mlp fc1/fc2); patch embed, mergers and deepstack mergers stay frozen
+VIT_TARGETS = r".*visual\.blocks\.\d+\.(attn\.(qkv|proj)|mlp\.(linear_fc1|linear_fc2))"
 
 
 def mask_loss(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -129,7 +131,8 @@ def step_sample(engine, model, decoder, item, args):
         visual = per_sample_premerge_feature_maps(
             vc.premerge_features, engine.cfg.vision_feature_layers, grid_thw, engine.spatial_merge_size
         )[0]
-        visual = [v.detach() for v in visual]  # ViT frozen
+        if not (args.vit_lora or args.vit_full):
+            visual = [v.detach() for v in visual]  # ViT frozen; with --vit_lora the seg loss also reaches the ViT LoRA
         size = engine.cnn_size
         cnn = _pil_to_float_rgb(image.resize((size, size), Image.Resampling.BICUBIC))[None].to(engine.device)
         boxes_t = torch.tensor([jitter(b, args.box_jitter) for b in boxes], device=engine.device)
@@ -162,6 +165,12 @@ def main():
                          "--lr_lora/--lr_decoder are the START lrs of its two param groups, adapted by the optimizer")
     ap.add_argument("--schedule", choices=["cosine", "constant"], default="cosine",
                     help="cosine: 5%% warmup + cosine to 0 (default). constant: no external schedule (required for automagic3)")
+    ap.add_argument("--vit_lora", action="store_true",
+                    help="also put the adapter on the ViT blocks (same rank/lr as the LLM adapter); seg loss is not detached")
+    ap.add_argument("--vit_full", action="store_true",
+                    help="full fine-tune of the whole vision tower (model.visual incl. mergers); AdamW on fp32 master "
+                         "weights at --lr_vit, same warmup+cosine; saves best_vision.pt (needs ~>32 GB VRAM)")
+    ap.add_argument("--lr_vit", type=float, default=1e-5)
     ap.add_argument("--seg_weight", type=float, default=1.0)
     ap.add_argument("--box_jitter", type=float, default=0.05)
     ap.add_argument("--max_steps", type=int, default=0, help="debug: stop after N optimizer steps")
@@ -181,6 +190,8 @@ def main():
                     help="fixed optimizer-update budget; overrides --epochs (epochs = ceil(total/steps_per_epoch))")
     ap.add_argument("--n_vals", type=int, default=0, help="validate ~this many times, evenly spaced (0 = every epoch)")
     args = ap.parse_args()
+    if args.vit_full and (args.vit_lora or args.optimizer != "adamw"):
+        ap.error("--vit_full is AdamW only and excludes --vit_lora")
     if args.normal_repeat < 1 or not math.isfinite(args.hard_negative_weight) or args.hard_negative_weight < 1:
         ap.error("normal_repeat and hard_negative_weight must be >= 1 and finite")
     rows = sources.rows(args.train_spec)
@@ -206,10 +217,11 @@ def main():
         from peft import PeftModel
         peft_model = PeftModel.from_pretrained(model, args.init_lora, is_trainable=True)
     else:
-        cfg = (LoraConfig(r=args.rank, lora_alpha=2 * args.rank, lora_dropout=0.05, target_modules=LORA_TARGETS)
+        targets = f"({LORA_TARGETS})|({VIT_TARGETS})" if args.vit_lora else LORA_TARGETS
+        cfg = (LoraConfig(r=args.rank, lora_alpha=2 * args.rank, lora_dropout=0.05, target_modules=targets)
                if args.adapter == "lora" else
                LoKrConfig(r=args.rank, alpha=args.rank, decompose_factor=args.lokr_factor,
-                          decompose_both=args.lokr_decompose_both, target_modules=LORA_TARGETS))
+                          decompose_both=args.lokr_decompose_both, target_modules=targets))
         peft_model = get_peft_model(model, cfg)
     if args.init_decoder:
         engine.mask_decoder.load_state_dict(torch.load(args.init_decoder, map_location='cpu', weights_only=True))
@@ -221,6 +233,15 @@ def main():
     decoder = engine.mask_decoder.float()
     for p in decoder.parameters():
         p.requires_grad_(True)
+    vit_mod, vit_params, vit_master = None, [], []
+    if args.vit_full:
+        vit_mod = vision_module(model)
+        vit_params = list(vit_mod.parameters())
+        for p in vit_params:
+            p.requires_grad_(True)
+        # bf16 weights cannot absorb ~1e-5 relative updates: optimise fp32 masters, copy back after each step
+        vit_master = [p.detach().float().clone().requires_grad_(True) for p in vit_params]
+        print(f"ViT full fine-tune params: {sum(p.numel() for p in vit_params):,}", flush=True)
     print(f"LoRA params: {sum(p.numel() for p in lora_params):,}  decoder params: "
           f"{sum(p.numel() for p in decoder.parameters()):,}", flush=True)
 
@@ -229,6 +250,8 @@ def main():
     print(f"train {args.train_spec}: {len(rows)} imgs, val {args.val_spec}: {len(val_rows)}, "
           f"{args.epochs} epochs, {total} updates, val at {sorted(val_epochs)}", flush=True)
     groups = [{"params": lora_params, "lr": args.lr_lora}, {"params": list(decoder.parameters()), "lr": args.lr_decoder}]
+    if vit_master:
+        groups.append({"params": vit_master, "lr": args.lr_vit})
     if args.optimizer == "automagic3":
         if args.schedule != "constant":
             ap.error("automagic3 adapts its own lr; use --schedule constant")
@@ -249,7 +272,7 @@ def main():
     log = (out / "history.csv").open("a", newline="")
     writer = csv.writer(log)
     writer.writerow(["epoch", "step", "lm_loss", "seg_loss", "val_dice", "val_lesion_dice", "val_normal_fp", "seconds",
-                     "lr_adapter", "lr_decoder"])
+                     "lr_adapter", "lr_decoder", "lr_vit"])
     best, step, started = -1.0, 0, time.perf_counter()
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -268,10 +291,16 @@ def main():
             ((lm_loss + args.seg_weight * seg_loss) / args.accum).backward()
             lm_acc, seg_acc, n_acc = lm_acc + lm_loss.item(), seg_acc + seg_loss.item(), n_acc + 1
             if (i + 1) % args.accum == 0 or i + 1 == len(epoch_rows):
+                for m, p in zip(vit_master, vit_params):
+                    m.grad = None if p.grad is None else p.grad.float()
+                    p.grad = None
                 if args.optimizer == "adamw":  # Automagic3 has its own trust region (update RMS/element clip)
-                    torch.nn.utils.clip_grad_norm_(lora_params + list(decoder.parameters()), 1.0)
+                    torch.nn.utils.clip_grad_norm_(lora_params + list(decoder.parameters()) + vit_master, 1.0)
                 lr_used = current_lrs()
                 opt.step()
+                with torch.no_grad():
+                    for m, p in zip(vit_master, vit_params):
+                        p.copy_(m)
                 sched.step()
                 opt.zero_grad(set_to_none=True)
                 step += 1
@@ -279,7 +308,7 @@ def main():
                     print(f"ep{epoch} step{step}/{total} lm={lm_acc / n_acc:.4f} seg={seg_acc / n_acc:.4f} "
                           f"{time.perf_counter() - started:.0f}s", flush=True)
                     writer.writerow([epoch, step, lm_acc / n_acc, seg_acc / n_acc, "", "", "", round(time.perf_counter() - started),
-                                     lr_used[0], lr_used[1]])
+                                     lr_used[0], lr_used[1], lr_used[2] if len(lr_used) > 2 else ""])
                     log.flush()
                     lm_acc, seg_acc, n_acc = 0.0, 0.0, 0
                 if (args.max_steps and step >= args.max_steps) or step >= total:
@@ -289,6 +318,7 @@ def main():
         model.eval()
         decoder.eval()
         summary = validate(engine, val_rows[:args.val_limit] if args.val_limit else val_rows)
+        summary["peak_vram_gb"] = round(torch.cuda.max_memory_allocated() / 2**30, 2)
         print(f"epoch {epoch} VAL {json.dumps(summary)}", flush=True)
         writer.writerow([epoch, step, "", "", summary["dice"], summary["lesion_dice"], summary["normal_fp_rate"],
                          round(time.perf_counter() - started)])
@@ -302,11 +332,19 @@ def main():
             best = summary["dice"]
             peft_model.save_pretrained(out / "best_lora")  # adapter only
             torch.save(decoder.state_dict(), out / "best_decoder.pt")
+            if vit_mod is not None:
+                torch.save(vit_mod.state_dict(), out / "best_vision.pt")
             (out / "best.json").write_text(json.dumps(dict(epoch=epoch, step=step, **summary), indent=2))
             print(f"  saved best (val dice {best:.4f})", flush=True)
         if (args.max_steps and step >= args.max_steps) or step >= total:
             break
     log.close()
+
+
+def vision_module(model):
+    """The Qwen3-VL vision tower (shortest module path ending in 'visual'); same lookup at train and eval time."""
+    names = [n for n, _ in model.named_modules() if n.split(".")[-1] == "visual"]
+    return model.get_submodule(min(names, key=len))
 
 
 @torch.no_grad()

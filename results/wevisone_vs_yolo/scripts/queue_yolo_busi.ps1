@@ -1,7 +1,7 @@
 # YOLO26m-seg on cleaned BUSI, 3 seeds; each evaluated on BUSI val/test + BUS-UCLM.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
-$py = "python"
+$py = "C:/Users/luis/miniconda3/envs/wevisone/python.exe"
 foreach ($seed in 42, 43, 44) {
     $run = "../runs/yolo/busi_m_s$seed"
     if (-not (Test-Path "$run/weights/best.pt")) {

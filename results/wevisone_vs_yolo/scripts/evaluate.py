@@ -17,11 +17,15 @@ import torch
 import common
 
 
-def apply_finetune(engine, lora: str | None, decoder: str | None):
+def apply_finetune(engine, lora: str | None, decoder: str | None, vision: str | None = None):
     if lora:
         from peft import PeftModel
 
         engine.model = PeftModel.from_pretrained(engine.model, lora).merge_and_unload().eval()
+    if vision:  # train.py --vit_full: whole vision tower state dict
+        names = [n for n, _ in engine.model.named_modules() if n.split(".")[-1] == "visual"]
+        mod = engine.model.get_submodule(min(names, key=len))
+        mod.load_state_dict(torch.load(vision, map_location="cpu", weights_only=True), strict=True)
     if decoder:
         state = torch.load(decoder, map_location="cpu", weights_only=True)
         engine.mask_decoder.load_state_dict(state, strict=True)

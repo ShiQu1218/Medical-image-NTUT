@@ -65,7 +65,21 @@ def main():
         json.dumps(dict(model="wanglab/medsam-vit-base", val_spec="busi:val", decoder=args.decoder), indent=2))
     for spec in args.sets.split(","):
         for mode in args.modes.split(","):
-            yolo, tag = None, mode
+            yolo, wv, tag = None, None, mode
+            if mode.startswith("wevis:"):
+                # WeVisOne generated boxes (0-1000 coords), kept iff presence gate passes (max val-normal rule)
+                import re
+                import analyze as A
+                from fpr_metrics import keep
+                run = Path(mode[len("wevis:"):])
+                val = A.wevis_records(run, A.wevis_val_spec(run))
+                thr = max(r["presence_score"] for r in val if r["category"] == "normal")
+                wv = {}
+                for r in A.wevis_records(run, spec):
+                    bx = [[int(v) / 1000 for v in m] for m in
+                          re.findall(r"<(\d+)><(\d+)><(\d+)><(\d+)><OBJ>", r.get("response", ""))]
+                    wv[r["id"]] = (bx if keep(r["presence_score"], thr) else [], r["presence_score"])
+                tag = f"wevisgate_{run.name}"
             if mode.startswith("yolo:"):
                 from yolo_eval import load_dets
                 npz, thr = mode[len("yolo:"):].rsplit(":", 1)
@@ -82,7 +96,11 @@ def main():
                     break
                 gray = np.asarray(it["image"].convert("L"))
                 extra = {}
-                if yolo is None:
+                if wv is not None:
+                    boxes, ps = wv[it["id"]]
+                    boxes = [b for b in boxes if b[2] > b[0] and b[3] > b[1]]
+                    extra = dict(presence_score=float(ps))
+                elif yolo is None:
                     boxes = [common.tight_box(m) for m in it["instances"]]
                 else:
                     det = yolo[it["id"]]

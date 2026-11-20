@@ -2,7 +2,7 @@
 # yolo11n-seg, 512 px, 50 epochs (no early stop), Ultralytics default aug. Waits for the prompt eval (GPU).
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
-$py = "python"
+$py = "C:/Users/luis/miniconda3/envs/wevisone/python.exe"
 while (Get-Process -Id 4228 -ErrorAction SilentlyContinue) { Start-Sleep 20 }
 foreach ($s in 0, 1, 2) {
     $name = "paper_busirand$s"; $data = "../data_yolo/$name"; $run = "../runs/yolo/${name}_y11n"

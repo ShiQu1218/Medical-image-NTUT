@@ -420,7 +420,9 @@ def main():
              wevis_long460=group("wevis", [WEVIS_DIR / f"long460_s{s}" for s in SEEDS], TESTS),
              wevis_long690=group("wevis", [WEVIS_DIR / f"long690_s{s}" for s in SEEDS], TESTS),
              wevis_lokr=group("wevis", [WEVIS_DIR / f"lokr_s{s}" for s in SEEDS], TESTS),
-             wevis_lokr_am3=group("wevis", [WEVIS_DIR / f"lokr_am3_s{s}" for s in SEEDS], TESTS))
+             wevis_lokr_am3=group("wevis", [WEVIS_DIR / f"lokr_am3_s{s}" for s in SEEDS], TESTS),
+             wevis_vitlora=group("wevis", [WEVIS_DIR / f"vitlora_s{s}" for s in SEEDS], TESTS),
+             wevis_vitfull=group("wevis", [WEVIS_DIR / f"vitfull_s{s}" for s in SEEDS], TESTS))
     hyb = {}
     for which in ("cal", "0.25"):
         per = []
@@ -447,6 +449,8 @@ def main():
             ("WeVisOne LoRA 690 updates + gate", g["wevis_long690"], "gate"),
             ("WeVisOne LoKr (AdamW, val-selected LR) + gate", g["wevis_lokr"], "gate"),
             ("WeVisOne LoKr (Automagic3, constant, 1e-4) + gate", g["wevis_lokr_am3"], "gate"),
+            ("WeVisOne LoRA on LLM + ViT + gate", g["wevis_vitlora"], "gate"),
+            ("WeVisOne LLM LoRA + full ViT fine-tune (G4) + gate", g["wevis_vitfull"], "gate"),
             ("Hybrid: YOLO cal boxes → WeVisOne decoder", hyb["cal"], "raw"),
             ("Hybrid: YOLO 0.25 boxes → WeVisOne decoder", hyb["0.25"], "raw")]
     md.append("## 1. Trained on BUSI only")
@@ -542,9 +546,11 @@ def main():
     for tag in ("ms_bra", "ms_bra_uclm"):
         ms[tag] = dict(wevis=group("wevis", [WEVIS_DIR / f"{tag}_s{s}" for s in SEEDS], TESTS),
                        yolo=group("yolo", [YOLO_DIR / f"{tag}_s{s}" for s in SEEDS], TESTS))
+    ms["ms_bra_vitfull"] = dict(wevis=group("wevis", [WEVIS_DIR / f"ms_bra_vitfull_s{s}" for s in SEEDS], TESTS), yolo=None)
     rep["multi_source"] = ms
     rows = [("BUSI only WeVisOne strong-aug + gate", g["wevis_aug"], "gate"), ("BUSI only YOLO cal", g["yolo"], "cal"),
             ("BUSI+BRA WeVisOne + gate", ms["ms_bra"]["wevis"], "gate"), ("BUSI+BRA YOLO cal", ms["ms_bra"]["yolo"], "cal"),
+            ("BUSI+BRA WeVisOne LoRA + full ViT fine-tune (G4) + gate", ms["ms_bra_vitfull"]["wevis"], "gate"),
             ("BUSI+BRA+UCLMtrain WeVisOne + gate", ms["ms_bra_uclm"]["wevis"], "gate"),
             ("BUSI+BRA+UCLMtrain YOLO cal", ms["ms_bra_uclm"]["yolo"], "cal"),
             ("BUSI+BRA+UCLMtrain WeVisOne raw", ms["ms_bra_uclm"]["wevis"], "raw"),
@@ -700,7 +706,10 @@ def main():
              ("WeVisOne 460 upd gate vs 230 upd gate", "wevis", "long460_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
              ("WeVisOne 690 upd gate vs 230 upd gate", "wevis", "long690_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
              ("WeVisOne LoKr gate vs LoRA gate", "wevis", "lokr_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
-             ("WeVisOne LoKr-Automagic3 gate vs LoRA gate", "wevis", "lokr_am3_s{s}", "gate", "wevis", "baseline_s{s}", "gate")]
+             ("WeVisOne LoKr-Automagic3 gate vs LoRA gate", "wevis", "lokr_am3_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
+             ("WeVisOne ViT+LLM LoRA gate vs LLM-only LoRA gate", "wevis", "vitlora_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
+             ("WeVisOne full-ViT gate vs LLM-only LoRA gate", "wevis", "vitfull_s{s}", "gate", "wevis", "baseline_s{s}", "gate"),
+             ("WeVisOne BUSI+BRA full-ViT gate vs BUSI+BRA LoRA gate", "wevis", "ms_bra_vitfull_s{s}", "gate", "wevis", "ms_bra_s{s}", "gate")]
     for spec in ["uclm:all", "uclm:test", "busuc:all"]:
         for label, ka, na, oa, kb, nb, ob in pairs:
             A = [op_records(ka, (WEVIS_DIR if ka == "wevis" else YOLO_DIR) / na.format(s=s), spec, oa) for s in SEEDS]

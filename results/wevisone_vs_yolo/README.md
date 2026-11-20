@@ -1,8 +1,10 @@
 # WeVisOne-VL-4B 與 YOLO、nnU-Net、MedSAM 的乳房超音波病灶分割比較
 
-> 狀態：2026-11-16 統計與定位指標修訂；少量資料完整 run 9/9。完成狀態見 [low_data_status.json](low_data_status.json)。 2026-11-19 補充公平性與訓練設定實驗（第 17b 節）；LoKr + Automagic3 仍在訓練。
+> 狀態：2026-11-16 統計與定位指標修訂；少量資料完整 run 9/9。完成狀態見 [low_data_status.json](low_data_status.json)。 2026-11-19 補充公平性與訓練設定實驗（第 17b 節）。2026-11-20 新增 ViT LoRA／ViT 全量 fine-tune、門檻規則敏感度與 WeVisOne 框 + MedSAM（第 17c 節）；摘要 PDF 見 [WeVisOne_實驗報告.pdf](WeVisOne_實驗報告.pdf)。
 
 ## 結論
+
+**2026-11-20 更新（第 17c 節）**：LLM LoRA + ViT 全量 fine-tune、門檻改用 13 張 val 正常影像分數的第 90 百分位（q90）後，與原主方法（LLM LoRA、max 門檻）相比，UCLM test 病灶 Dice 0.777 vs 0.708（配對 bootstrap +0.069 [+0.029, +0.104]，Holm p = 0.02），UCLM all +0.081、BUS-BRA test +0.080、BUS_UC +0.010（皆 Holm p < 0.05），正常影像 FPR 沒有顯著差異；BUSI test 打平。q90 是在看到 max 規則讓 ViT 全量 fine-tune 3 個 seed 中 2 個漏判約 30% 之後才採用，屬事後選擇，所以四種門檻規則全部列出（[GATE_RULES.md](GATE_RULES.md)）。以下原有結論均指原主方法。
 
 主要外部評估使用 UCLM patient-held-out test（331 張／18 位病人）；UCLM all 含這些影像，兩者不可當作獨立重複驗證。
 
@@ -474,7 +476,7 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 
 **LoKr（PEFT LoKr r16，1.2M 參數，約 LoRA 的 1/28）+ AdamW**：起始 LR 只用 BUSI val 從 1e-4／3e-4／1e-3 選出 1e-3。與 LoRA 比，uclm:test Dice −0.018（Holm 後不顯著）、FPR +9.0pp（p = 0.004），且 seed 間 FPR 變異大。
 
-**LoKr + Automagic3 + constant（起始 LR 1e-4）**：訓練中，完成後更新。Automagic3 取自 ostris/ai-toolkit（commit `cfdc903`，MIT），未修改，放在 `scripts/third_party/`。
+**LoKr + Automagic3 + constant（起始 LR 1e-4）**：Dice 與 LoRA 相當（uclm:test 0.711），但 FPR 大幅升高：uclm:test +18.3pp [+15.1, +21.6]、uclm:all +15.7pp（皆 Holm p = 0.004），seed 間 33.7 ± 27.9%；BUS_UC Dice −0.011（p = 0.006）。Automagic3 取自 ostris/ai-toolkit（commit `cfdc903`，MIT），未修改，放在 `scripts/third_party/`。
 
 **其他新增**
 - 依良惡性與病灶大小分層：[STRATIFIED.md](STRATIFIED.md)。
@@ -482,6 +484,37 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 - 規則挑選的定性比較圖：[uclm:test](fig_vlm_vs_yolo_uclm_test.png)、[busi:test](fig_vlm_vs_yolo_busi_test.png)。
 - 訓練 loss 與 LR 曲線：[baseline](fig_training_lr_baseline.png)、[strong-aug](fig_training_lr_aug.png)、[多來源](fig_training_lr_ms_bra_uclm.png)。
 - 推論成本：`cost_*.json`。WeVisOne 延遲是在 GPU 有其他工作時量的，偏保守，之後重測。
+
+## 17c. 2026-11-20 補充：ViT 微調、門檻規則與 WeVisOne 框 + MedSAM
+
+**ViT 微調**（其餘設定同原主方法：LLM LoRA r16、decoder 全部、AdamW、230 步、3 seeds）
+- `--vit_lora`：ViT 每個 block 的 attn qkv/proj 與 MLP 也加 LoRA，分割 loss 不再 detach。uclm:test FPR −8.3pp [−12.8, −4.5]（Holm p = 0.005），但漏判 17.2%（原 11.0%），Dice −0.018（不顯著），BrEaST Dice 0.621。整體變保守，AUROC 不變。
+- `--vit_full`：整個 ViT（0.415B）全量訓練，lr 1e-5，以 fp32 master 權重更新；峰值 VRAM 29.2 GB，RTX 4090 放不下，在 Colab G4（RTX PRO 6000 96 GB）訓練，notebook 見 `scripts/colab/`。
+
+**門檻規則**（[GATE_RULES.md](GATE_RULES.md)；只用快取分數，不重新推論）：max、q90、q80、Youden，全部只用各 run 自己的 BUSI val 擬合。
+- 原主方法對規則不敏感（uclm:test Dice 0.708–0.716）；YOLO 很敏感（0.506–0.568，FPR 10–44%）。
+- ViT 全量 fine-tune 的 s42、s44 各有一張 val 正常影像分數極高（3.9、4.0），max 規則使 uclm:test 漏判 27–30%、Dice 0.61–0.63；q90 下三個 seed 為 0.769 / 0.824 / 0.738，漏判 5.6–12.6%。
+
+**q90 下的配對 bootstrap**（[GATE_Q90_BOOTSTRAP.md](GATE_Q90_BOOTSTRAP.md)；Holm 對表中 30 個 p 值）
+
+| 比較（A − B） | 資料集 | Δ 病灶 Dice [95% CI] | Holm p | ΔFPR pp [95% CI] |
+|---|---|---:|---:|---:|
+| 全量 ViT q90 − LLM LoRA q90 | uclm:test | +0.065 [+0.025, +0.100] | 0.029 | −0.5 [−5.6, +4.1] |
+| | uclm:all | +0.078 [+0.051, +0.107] | 0.006 | +1.5 [−1.9, +4.8] |
+| | busuc:all | +0.010 [+0.003, +0.017] | 0.042 | – |
+| | busbra:test | +0.079 [+0.059, +0.100] | 0.006 | – |
+| | breast:all | −0.017 [−0.041, +0.004] | 1 | +8.3 [0.0, +33.3] |
+| 全量 ViT q90 − LLM LoRA max（原主方法） | uclm:test | +0.069 [+0.029, +0.104] | 0.020 | +0.9 [−4.1, +5.7] |
+| | uclm:all | +0.081 [+0.053, +0.110] | 0.006 | +3.0 [−0.2, +6.2] |
+| BUSI+BRA 全量 ViT q90 − BUSI+BRA LLM LoRA q90 | uclm:all | +0.065 [+0.033, +0.091] | 0.029 | +2.7 [−0.2, +5.3] |
+| | busuc:all | +0.029 [+0.020, +0.038] | 0.006 | – |
+| | busbra:test | +0.019 [+0.007, +0.031] | 0.035 | – |
+
+BUSI+BRA + 全量 ViT（q90）：uclm:test FPR 9.9%、Dice 0.771、BUS_UC 0.905（目前所有設定最高）、BUS-BRA test 0.886。
+
+**WeVisOne 框 + 門檻 → 微調 MedSAM 畫 mask**（[WEVIS_MEDSAM.md](WEVIS_MEDSAM.md)；原主方法 3 seeds）：五個外部資料集都比 WeVisOne 自己的 decoder 低 0.008–0.024（Holm p ≤ 0.002），BUSI test 打平；仍比 YOLO 高 0.12–0.42。外部優勢來自偵測，不需要外接 MedSAM。
+
+**圖**（`scripts/fig_report.py`）：[主要結果](fig_report_main.png)、[配對比較](fig_report_forest.png)、[門檻規則](fig_report_gate.png)、[誤報 vs 漏判](fig_report_tradeoff.png)、[訓練變體](fig_report_variants.png)、[decoder](fig_report_decoder.png)。
 
 ## 18. 對審稿意見的逐點回覆
 
@@ -539,7 +572,7 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 - **閘門規則不穩定**：閘門取驗證集正常影像的最高分。
   - BUSI 驗證集只有 13 張正常影像，閾值跳動大（少量資料實驗）。
   - 多來源合併驗證集的正常影像多，單一離群值就能把閾值推到刪掉幾乎所有病灶（第 16 節）。
-  - 用分位數或固定 FPR 的閾值可能較穩定，但本研究沒有在看到結果後更換規則。
+  - 分位數規則較穩定（第 17c 節），但 q90 是在看到 max 規則讓 ViT 全量 fine-tune 失敗後才採用，屬事後選擇；原主方法的所有結論仍使用 max，q90 結果以敏感度分析並列，需在獨立資料上確認。
 - **誤報率是影像層級**：只要正常影像有任一前景像素就算誤報，沒有考慮面積或信心。
 - **seed 數不一致**：
   - 少量資料目標為每個比例 3 seeds，目前通過完整檢查 9/9；多來源已有 3 seeds；交叉驗證每折仍只有 1 個 seed。
@@ -565,6 +598,11 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 | [PROMPT_ZEROSHOT.md](PROMPT_ZEROSHOT.md) / [prompt_zeroshot.json](prompt_zeroshot.json) | 零樣本、原提示與 +None 提示的 3-seed 比較 |
 | [prompt_none_s42_COMPARE.md](prompt_none_s42_COMPARE.md) | seed 42 的逐張配對翻轉分析 |
 | [fig_operating_uclm.png](fig_operating_uclm.png) | UCLM 操作曲線 |
+| [GATE_RULES.md](GATE_RULES.md) / [gate_rules.json](gate_rules.json) | 四種門檻規則 × 各組別 × 每個 seed |
+| [GATE_Q90_BOOTSTRAP.md](GATE_Q90_BOOTSTRAP.md) / [gate_q90_bootstrap.json](gate_q90_bootstrap.json) | q90 門檻下全量 ViT 的配對 bootstrap |
+| [WEVIS_MEDSAM.md](WEVIS_MEDSAM.md) / [wevis_medsam.json](wevis_medsam.json) | WeVisOne 框 + 門檻 → 微調 MedSAM |
+| [fig_report.json](fig_report.json) / `fig_report_*.png` | 摘要 PDF 的圖與所有繪圖數字 |
+| [WeVisOne_實驗報告.pdf](WeVisOne_實驗報告.pdf) | 8 頁圖表摘要 |
 | [scripts/](scripts/) | 所有資料載入、訓練、評估與分析程式 |
 
 重現環境：Windows、RTX 4090、Python 3.10、torch 2.11、transformers 5.12、ultralytics 8.4.212、nnunetv2。

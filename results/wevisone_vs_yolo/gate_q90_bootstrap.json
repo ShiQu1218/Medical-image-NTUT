@@ -1,0 +1,326 @@
+{
+  "busi:test | full-ViT q90 vs LLM-LoRA q90": {
+    "n_images": 76,
+    "n_patients": 76,
+    "fpr_diff": -0.20000000000000004,
+    "fpr_diff_ci": [
+      -0.4333333333333334,
+      0.0
+    ],
+    "lesion_dice_diff": -0.0007666216601002597,
+    "lesion_dice_diff_ci": [
+      -0.022043781654661705,
+      0.01894534092065038
+    ],
+    "fpr_p": 0.0652,
+    "lesion_dice_p": 0.9616,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 1.0
+  },
+  "uclm:test | full-ViT q90 vs LLM-LoRA q90": {
+    "n_images": 331,
+    "n_patients": 18,
+    "fpr_diff": -0.005319148936170214,
+    "fpr_diff_ci": [
+      -0.055555555555555546,
+      0.04120064941758579
+    ],
+    "lesion_dice_diff": 0.06465296092174701,
+    "lesion_dice_diff_ci": [
+      0.02486226676381879,
+      0.09994805886575686
+    ],
+    "fpr_p": 0.8048,
+    "lesion_dice_p": 0.0012,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.0288
+  },
+  "uclm:all | full-ViT q90 vs LLM-LoRA q90": {
+    "n_images": 679,
+    "n_patients": 38,
+    "fpr_diff": 0.015115354017501985,
+    "fpr_diff_ci": [
+      -0.018957834764519108,
+      0.04812926213020653
+    ],
+    "lesion_dice_diff": 0.07830517579147221,
+    "lesion_dice_diff_ci": [
+      0.05050737308202027,
+      0.1074629218068422
+    ],
+    "fpr_p": 0.408,
+    "lesion_dice_p": 0.0001999600079984003,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.005998800239952009
+  },
+  "busuc:all | full-ViT q90 vs LLM-LoRA q90": {
+    "n_images": 811,
+    "n_patients": 811,
+    "fpr_diff": NaN,
+    "fpr_diff_ci": [
+      NaN,
+      NaN
+    ],
+    "lesion_dice_diff": 0.009974115039693634,
+    "lesion_dice_diff_ci": [
+      0.0030706184001848525,
+      0.017419505630556813
+    ],
+    "fpr_p": NaN,
+    "lesion_dice_p": 0.002,
+    "fpr_p_holm": NaN,
+    "lesion_dice_p_holm": 0.042
+  },
+  "busbra:test | full-ViT q90 vs LLM-LoRA q90": {
+    "n_images": 374,
+    "n_patients": 212,
+    "fpr_diff": NaN,
+    "fpr_diff_ci": [
+      NaN,
+      NaN
+    ],
+    "lesion_dice_diff": 0.0788521986258387,
+    "lesion_dice_diff_ci": [
+      0.05927742167086554,
+      0.09956345587380626
+    ],
+    "fpr_p": NaN,
+    "lesion_dice_p": 0.0001999600079984003,
+    "fpr_p_holm": NaN,
+    "lesion_dice_p_holm": 0.005998800239952009
+  },
+  "breast:all | full-ViT q90 vs LLM-LoRA q90": {
+    "n_images": 256,
+    "n_patients": 256,
+    "fpr_diff": 0.08333333333333334,
+    "fpr_diff_ci": [
+      0.0,
+      0.33333333333333337
+    ],
+    "lesion_dice_diff": -0.017377692552545454,
+    "lesion_dice_diff_ci": [
+      -0.04056390815760442,
+      0.004415193407333701
+    ],
+    "fpr_p": 0.6864268192968112,
+    "lesion_dice_p": 0.124,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 1.0
+  },
+  "busi:test | BUSI+BRA full-ViT q90 vs BUSI+BRA LLM-LoRA q90": {
+    "n_images": 76,
+    "n_patients": 76,
+    "fpr_diff": 0.03333333333333333,
+    "fpr_diff_ci": [
+      -0.09523809523809523,
+      0.20512820512820512
+    ],
+    "lesion_dice_diff": 0.01802200444500533,
+    "lesion_dice_diff_ci": [
+      -0.017870316627473275,
+      0.052166408784414
+    ],
+    "fpr_p": 0.9356,
+    "lesion_dice_p": 0.3012,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 1.0
+  },
+  "uclm:test | BUSI+BRA full-ViT q90 vs BUSI+BRA LLM-LoRA q90": {
+    "n_images": 331,
+    "n_patients": 18,
+    "fpr_diff": 0.02659574468085106,
+    "fpr_diff_ci": [
+      -0.01736281318082789,
+      0.06148915472337802
+    ],
+    "lesion_dice_diff": 0.049970316356398425,
+    "lesion_dice_diff_ci": [
+      0.004769880175566017,
+      0.08203894798077907
+    ],
+    "fpr_p": 0.2012,
+    "lesion_dice_p": 0.03,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.57
+  },
+  "uclm:all | BUSI+BRA full-ViT q90 vs BUSI+BRA LLM-LoRA q90": {
+    "n_images": 679,
+    "n_patients": 38,
+    "fpr_diff": 0.02704852824184566,
+    "fpr_diff_ci": [
+      -0.0019509372625925365,
+      0.05292100291526196
+    ],
+    "lesion_dice_diff": 0.06456229950638462,
+    "lesion_dice_diff_ci": [
+      0.03287784239378419,
+      0.09117177022003113
+    ],
+    "fpr_p": 0.0668,
+    "lesion_dice_p": 0.0012,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.0288
+  },
+  "busuc:all | BUSI+BRA full-ViT q90 vs BUSI+BRA LLM-LoRA q90": {
+    "n_images": 811,
+    "n_patients": 811,
+    "fpr_diff": NaN,
+    "fpr_diff_ci": [
+      NaN,
+      NaN
+    ],
+    "lesion_dice_diff": 0.028616488332082055,
+    "lesion_dice_diff_ci": [
+      0.020305621760108993,
+      0.03754586620099434
+    ],
+    "fpr_p": NaN,
+    "lesion_dice_p": 0.0001999600079984003,
+    "fpr_p_holm": NaN,
+    "lesion_dice_p_holm": 0.005998800239952009
+  },
+  "busbra:test | BUSI+BRA full-ViT q90 vs BUSI+BRA LLM-LoRA q90": {
+    "n_images": 374,
+    "n_patients": 212,
+    "fpr_diff": NaN,
+    "fpr_diff_ci": [
+      NaN,
+      NaN
+    ],
+    "lesion_dice_diff": 0.018860633782426493,
+    "lesion_dice_diff_ci": [
+      0.007399954582498791,
+      0.030685116390792026
+    ],
+    "fpr_p": NaN,
+    "lesion_dice_p": 0.0016,
+    "fpr_p_holm": NaN,
+    "lesion_dice_p_holm": 0.0352
+  },
+  "breast:all | BUSI+BRA full-ViT q90 vs BUSI+BRA LLM-LoRA q90": {
+    "n_images": 256,
+    "n_patients": 256,
+    "fpr_diff": -0.16666666666666669,
+    "fpr_diff_ci": [
+      -0.33333333333333337,
+      0.0
+    ],
+    "lesion_dice_diff": 0.02990585102817491,
+    "lesion_dice_diff_ci": [
+      0.0021119157288667567,
+      0.05825664313100492
+    ],
+    "fpr_p": 0.24488961569910056,
+    "lesion_dice_p": 0.0344,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.6192
+  },
+  "busi:test | full-ViT q90 vs LLM-LoRA max (current main)": {
+    "n_images": 76,
+    "n_patients": 76,
+    "fpr_diff": -0.13333333333333336,
+    "fpr_diff_ci": [
+      -0.33333333333333337,
+      0.0606060606060606
+    ],
+    "lesion_dice_diff": -0.0007666216601002597,
+    "lesion_dice_diff_ci": [
+      -0.022043781654661705,
+      0.01894534092065038
+    ],
+    "fpr_p": 0.2216,
+    "lesion_dice_p": 0.9616,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 1.0
+  },
+  "uclm:test | full-ViT q90 vs LLM-LoRA max (current main)": {
+    "n_images": 331,
+    "n_patients": 18,
+    "fpr_diff": 0.008865248226950354,
+    "fpr_diff_ci": [
+      -0.0409683426443203,
+      0.05709023941068139
+    ],
+    "lesion_dice_diff": 0.06873683624823355,
+    "lesion_dice_diff_ci": [
+      0.028941710759675093,
+      0.10416969910617964
+    ],
+    "fpr_p": 0.7776,
+    "lesion_dice_p": 0.0008,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.02
+  },
+  "uclm:all | full-ViT q90 vs LLM-LoRA max (current main)": {
+    "n_images": 679,
+    "n_patients": 38,
+    "fpr_diff": 0.030230708035003977,
+    "fpr_diff_ci": [
+      -0.002354213800904978,
+      0.06150738639486519
+    ],
+    "lesion_dice_diff": 0.08078477286273539,
+    "lesion_dice_diff_ci": [
+      0.053134250754869966,
+      0.10977187326624407
+    ],
+    "fpr_p": 0.0712,
+    "lesion_dice_p": 0.0001999600079984003,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 0.005998800239952009
+  },
+  "busuc:all | full-ViT q90 vs LLM-LoRA max (current main)": {
+    "n_images": 811,
+    "n_patients": 811,
+    "fpr_diff": NaN,
+    "fpr_diff_ci": [
+      NaN,
+      NaN
+    ],
+    "lesion_dice_diff": 0.01033931330128962,
+    "lesion_dice_diff_ci": [
+      0.0033238430168602254,
+      0.017894380317688207
+    ],
+    "fpr_p": NaN,
+    "lesion_dice_p": 0.002,
+    "fpr_p_holm": NaN,
+    "lesion_dice_p_holm": 0.042
+  },
+  "busbra:test | full-ViT q90 vs LLM-LoRA max (current main)": {
+    "n_images": 374,
+    "n_patients": 212,
+    "fpr_diff": NaN,
+    "fpr_diff_ci": [
+      NaN,
+      NaN
+    ],
+    "lesion_dice_diff": 0.07980342502627596,
+    "lesion_dice_diff_ci": [
+      0.060267884833615115,
+      0.10048692811910749
+    ],
+    "fpr_p": NaN,
+    "lesion_dice_p": 0.0001999600079984003,
+    "fpr_p_holm": NaN,
+    "lesion_dice_p_holm": 0.005998800239952009
+  },
+  "breast:all | full-ViT q90 vs LLM-LoRA max (current main)": {
+    "n_images": 256,
+    "n_patients": 256,
+    "fpr_diff": 0.16666666666666669,
+    "fpr_diff_ci": [
+      0.0,
+      0.6666666666666667
+    ],
+    "lesion_dice_diff": -0.011925845880539142,
+    "lesion_dice_diff_ci": [
+      -0.03549011670907504,
+      0.010401529101904077
+    ],
+    "fpr_p": 0.6864268192968112,
+    "lesion_dice_p": 0.2892,
+    "fpr_p_holm": 1.0,
+    "lesion_dice_p_holm": 1.0
+  }
+}

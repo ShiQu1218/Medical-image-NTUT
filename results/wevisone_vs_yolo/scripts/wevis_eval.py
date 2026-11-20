@@ -68,6 +68,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lora")
     ap.add_argument("--decoder")
+    ap.add_argument("--vision", help="best_vision.pt from train.py --vit_full")
     ap.add_argument("--out", required=True)
     ap.add_argument("--sets", default="busi:val,busi:test,uclm:all")
     ap.add_argument("--modes", default="generate,gt_box")
@@ -79,7 +80,7 @@ def main():
         common.PROMPT = common.PROMPT + "\n" + args.prompt_suffix  # read at call time by every inference path
     (out / "prompt.txt").write_text(common.PROMPT, encoding="utf-8")
     engine = common.load_engine()
-    apply_finetune(engine, args.lora, args.decoder)
+    apply_finetune(engine, args.lora, args.decoder, args.vision)
     report = {}
     for spec in args.sets.split(","):
         for mode in args.modes.split(","):
