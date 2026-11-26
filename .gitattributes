@@ -4,3 +4,4 @@
 *.txt text eol=lf
 metadata/dataset_comment_list.csv -text whitespace=cr-at-eol
 *.pdf binary
+results/wevisone_vs_yolo/holdout_frozen_thresholds.json -text whitespace=cr-at-eol
