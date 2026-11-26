@@ -8,7 +8,7 @@
 
 本專案為 G07 專題，依提案建立固定 U-Net 的 BUSI 分割比較，加入中值濾波、CLAHE→SRAD 與資料清理實驗。以下整理全部已完成的主要結果；原始 CSV、曲線與設定均可追溯。
 
-延伸實驗見 [WeVisOne-VL 提示詞初篩](results/wevisone_prompt_pilot/README.md)，比較五種提示對正常影像誤報與病灶 Dice 的影響。完整評估見 [WeVisOne-VL 與 YOLO、nnU-Net、MedSAM 的跨資料集比較](results/wevisone_vs_yolo/README.md)：涵蓋 BUSI、BUS-UCLM、BUS-BRA、BUS_UC、BrEaST 五個資料集、相同誤報率下的比較、失敗分解與審稿意見逐點回覆。
+WeVisOne-VL 的整理結果見本頁下方的[延伸研究](#延伸研究wevisone-vl-4b-跨機構乳房超音波病灶分割)。延伸實驗見 [WeVisOne-VL 提示詞初篩](results/wevisone_prompt_pilot/README.md)，比較五種提示對正常影像誤報與病灶 Dice 的影響。完整評估見 [WeVisOne-VL 與 YOLO、nnU-Net、MedSAM 的跨資料集比較](results/wevisone_vs_yolo/README.md)：涵蓋 BUSI、BUS-UCLM、BUS-BRA、BUS_UC、BrEaST 五個資料集、相同誤報率下的比較、失敗分解與審稿意見逐點回覆。
 
 ## 實驗總覽
 
@@ -179,3 +179,102 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 - Pawłowska et al. (2023), [勘誤補充清單](https://doi.org/10.17632/k8t3gnx9h6.1)，CC BY 4.0；詳見 [metadata](metadata/README.md)。
 - Yu & Acton (2002), [Speckle reducing anisotropic diffusion](https://doi.org/10.1109/TIP.2002.804276)。
 - Ronneberger et al. (2015), [U-Net](https://arxiv.org/abs/1505.04597)。
+
+---
+
+# 延伸研究：WeVisOne-VL-4B 跨機構乳房超音波病灶分割
+
+以上是影像前處理實驗（固定 U-Net）。本節是另一組實驗：只用同一份清理版 BUSI 訓練 368 張／驗證 85 張來微調 WeVisOne-VL-4B，與 YOLO26m-seg 等模型比較跨資料集表現。**兩組實驗的分數定義不同，不可直接相比**：上面多數表格的 Dice 含正常影像（空標註且空預測記 1），本節的「病灶 Dice」只計病灶影像，漏判記 0。
+
+## 重點結論
+
+- **訓練時沒看過的醫院資料上，WeVisOne 高於 YOLO26m。** 全量 ViT 微調版與 YOLO 都用 q90 門檻時，UCLM test 病灶 Dice 為 **0.777 vs 0.558**；五個外部評估集的差距為 +0.22 至 +0.42，配對 bootstrap 95% CI 全部大於 0。UCLM test 是 UCLM 全部的子集，兩者不是獨立驗證。
+- **加入目標醫院的標註資料後，優勢消失。** 用 BUSI + BUS-BRA + UCLM train 訓練時，預先登錄的主要比較為 +0.013（95% CI −0.027 至 +0.051），依規則判定「未定論」：不能說贏，也不能正式說等價。原方法（LLM LoRA）在同類設定下低於 YOLO。
+- **成本高很多。** 推論每張 729 ms、VRAM 11.1 GB；YOLO26m 為 10 ms、0.25 GB，約慢 76 倍。全量 ViT 訓練約需 29 GB VRAM。
+- **新方法的 q90 門檻是看過測試結果後才選的。** 預先登錄的保留資料集 QAMEBI 通過三項標準，但它沒有正常影像，q90 對誤報率的影響仍未經獨立驗證。
+
+## 方法
+
+| 名稱 | ViT 影像編碼器 | 語言模型 | 像素 decoder | 有無病灶門檻 |
+|---|---|---|---|---|
+| 原方法（LLM LoRA） | 凍結 | LoRA r16 | 全部訓練 | max：13 張 BUSI val 正常影像分數的最大值 |
+| 新方法（全量 ViT） | 全部微調 | LoRA r16 | 全部訓練 | q90：同一批分數的第 90 百分位 |
+
+兩者都訓練 230 次更新、各 3 個種子（42/43/44），提示詞為 breast lesion。YOLO26m-seg 同樣 3 個種子。外部資料集為 BUS-UCLM、BUS-BRA、BUS_UC、BrEaST。
+
+## 只用 BUSI 訓練
+
+病灶 Dice，3 個種子平均。前兩欄兩邊門檻規則相同（q90）；後兩欄是原本預先指定的 max 門檻。
+
+| 評估資料 | 全量 ViT（q90） | YOLO26m（q90） | 差值 [95% CI] | LLM LoRA（max） | YOLO26m（max） |
+|---|---:|---:|---:|---:|---:|
+| BUSI test（同來源） | 0.829 | 0.762 | +0.066 [+0.029, +0.110] | 0.829 | 0.704 |
+| UCLM test | **0.777** | 0.558 | +0.219 [+0.137, +0.320] | 0.708 | 0.506 |
+| UCLM 全部 | **0.687** | 0.449 | +0.238 [+0.187, +0.295] | 0.607 | 0.380 |
+| BUS_UC | **0.889** | 0.606 | +0.283 [+0.261, +0.305] | 0.879 | 0.502 |
+| BUS-BRA test | **0.812** | 0.392 | +0.420 [+0.381, +0.461] | 0.732 | 0.291 |
+| BrEaST | 0.682 | 0.423 | +0.259 [+0.220, +0.297] | **0.694** | 0.335 |
+
+UCLM test 的操作點（漏判指預測與標註完全沒有重疊）：
+
+| 模型（門檻） | 病灶漏判率 | 正常影像誤報率 |
+|---|---:|---:|
+| 全量 ViT（q90） | 8.6% | 16.3% |
+| YOLO26m（q90） | 34.5% | 25.0% |
+| LLM LoRA（max） | 11.0% | 15.4% |
+| YOLO26m（max） | 43.4% | 9.8% |
+
+![各資料集病灶 Dice](results/wevisone_vs_yolo/fig_report_main.png)
+
+圖中的 YOLO 使用 max（val 校準）門檻，不是上表的 q90 公平比較。
+
+- **差距主要來自有沒有找到病灶。** 原方法與 YOLO 都命中的 UCLM test 病灶，Dice 相近（0.881 vs 0.896）。惡性病灶（28 個）漏判率：全量 ViT q90 15.5%、LLM LoRA max 20.2%、YOLO max 78.6%。
+- **YOLO 變體沒有追平原方法的點估計。** UCLM test 上，原方法比 YOLO26x 高 +0.186（Holm p = 0.0078），比加超音波強增強的 YOLO26m 高 +0.106（CI +0.025 至 +0.201，Holm p = 0.18，校正後不顯著）。
+- **全量 ViT 相對原方法的提升主要在外部資料。** 兩者都用 q90 時，UCLM test +0.065、UCLM 全部 +0.078、BUS-BRA +0.079、BUS_UC +0.010（Holm p < 0.05）；BrEaST −0.017，不顯著。
+- **門檻規則影響很大。** 全量 ViT 用 max 時，3 個種子中有 2 個在 UCLM test 漏判約 27–30%；四種規則的完整結果見 [GATE_RULES.md](results/wevisone_vs_yolo/GATE_RULES.md)。
+- **BiomedParse v1（零樣本，1 次）** 套 max 門檻的 UCLM test 病灶 Dice 為 0.574；全量 ViT（q90）高 +0.203（CI +0.118 至 +0.308）。同來源 BUSI test 則是 0.812 vs 0.829，差異不顯著。BUSI 可能在它的訓練資料中。[完整表格](results/wevisone_vs_yolo/BIOMEDPARSE.md)
+- **BrEaST 是全量 ViT 沒有進步的資料集。** 136 次漏判（病灶 × 種子）中有 112 次是模型判為無病灶；小病灶對兩種 WeVisOne 方法都困難。非典型病灶退步較多，推測與全量微調更貼近 BUSI 的病灶定義有關，尚未驗證。[錯誤分析](results/wevisone_vs_yolo/ERROR_BREAST.md)
+
+## 多來源訓練（BUSI + BUS-BRA + UCLM train）
+
+UCLM test，3 個種子，各來源使用自身驗證集的門檻。主要比較兩邊都用 q90，訓練前已[登錄協定](results/wevisone_vs_yolo/MS3_VITFULL_PREREG.md)。
+
+| 模型（q90） | 病灶 Dice | 漏判率 | 正常影像誤報率 |
+|---|---:|---:|---:|
+| 全量 ViT | 0.785 ± 0.025 | 12.6% | 5.9% |
+| YOLO26m | 0.771 ± 0.026 | 9.3% | 15.1% |
+| LLM LoRA | 0.684 ± 0.045 | 21.7% | 4.4% |
+| 全量 ViT + UCLM 病灶影像重複 3 次（探索性） | 0.828 ± 0.021 | 8.6% | 4.3% |
+
+- 全量 ViT − YOLO：Dice +0.013（−0.027 至 +0.051），**未定論**；誤報率低 9.2 個百分點。改用 max 門檻（次要分析）則為 +0.037（+0.002 至 +0.063）。
+- 沒參與訓練的 BUS_UC、BrEaST 上，q90 的全量 ViT 比 YOLO 高 +0.041、+0.063。
+- 重複抽樣版是看過先前結果後提出的假設，只能當探索性結果。
+
+[完整結果](results/wevisone_vs_yolo/MS3_VITFULL.md)
+
+## 預先登錄的保留資料測試（QAMEBI）
+
+門檻與成功標準在下載資料前[寫定](results/wevisone_vs_yolo/HOLDOUT_PREREG.md)。QAMEBI 共 232 張病灶 ROI 裁切影像，沒有正常影像。
+
+| 模型（門檻） | 病灶 Dice | 漏判率 |
+|---|---:|---:|
+| 全量 ViT（q90，主要分析） | 0.840 ± 0.011 | 3.0% |
+| 全量 ViT（max） | 0.794 ± 0.048 | 8.9% |
+| LLM LoRA（max） | 0.827 ± 0.017 | 3.0% |
+| YOLO26m（val 校準） | 0.504 ± 0.054 | 41.2% |
+| BiomedParse（零樣本，max，1 次） | 0.698 | 20.7% |
+
+三項標準全部通過：各種子漏判 ≤ 20%；不劣於原方法（+0.013，CI −0.001 至 +0.028，沒有顯著較好）；優於 YOLO（+0.336，CI +0.290 至 +0.381）。[完整結果](results/wevisone_vs_yolo/HOLDOUT.md)
+
+## 本節限制
+
+- q90 屬事後選擇，且只由 13 張 BUSI val 正常影像估計；多來源 BUSI + BUS-BRA 的 q90 結果同樣是事後分析。
+- 本節的信賴區間只反映固定模型與門檻下的抽樣不確定性，不含重新訓練與重新校準。UCLM test 只有 18 位病人；沒有病人 ID 的資料集以影像或群組抽樣。
+- BUSI test 只有 10 張正常影像、BrEaST 只有 4 張，這兩者的誤報率只能參考。
+- WeVisOne 未公開預訓練資料清單，無法排除看過公開乳房超音波資料。
+- 調參投入不對等：WeVisOne 試過的變體較多，新方法是看過測試結果後選出的。
+
+## 詳細報告
+
+- [完整比較報告](results/wevisone_vs_yolo/README.md)：資料切分、指標定義、失敗分解、嚴格定位 F1、交叉驗證、少量資料、壓力測試與審稿意見回覆（更新至 2026-11-20；上述多來源全量 ViT、QAMEBI、BiomedParse、BrEaST 分析在其後完成，以本節和各連結為準）。
+- [自動產生的數據表](results/wevisone_vs_yolo/REPORT.md) · [8 頁圖表 PDF](results/wevisone_vs_yolo/WeVisOne_實驗報告.pdf) · [提示詞初篩](results/wevisone_prompt_pilot/README.md)

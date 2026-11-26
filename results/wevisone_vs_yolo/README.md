@@ -12,9 +12,9 @@
 
 - **固定門檻 bootstrap，uclm:test**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.202（95% CI +0.116 至 +0.313）；正常影像 FPR 差 +5.7 個百分點（95% CI -0.3 至 +12.5），區間跨過 0，無法判定正常影像 FPR 有差異。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
 - **固定門檻 bootstrap，uclm:all**：WeVisOne gate − YOLO val-cal，病灶 Dice 差 +0.227（95% CI +0.169 至 +0.295）；正常影像 FPR 差 +6.1 個百分點（95% CI +1.3 至 +11.1），WeVisOne 的正常影像 FPR 較高。這是各自驗證集校準後的固定操作點比較，並非相同 FPR 的比較。
-- **多來源訓練（BUSI+BRA+UCLM train 病人），uclm:test，各來源自身 val 校準**：WeVisOne − YOLO 病灶 Dice 差 -0.093（95% CI -0.145 至 -0.033，YOLO 較高）；FPR 差 -2.0 個百分點（95% CI -5.5 至 +1.3；Dice Holm p = 0.0252）。目標站點資料納入訓練後，WeVisOne 在 BUSI-only 設定下的外部優勢反轉為 YOLO 較佳；原本的合併 val 門檻（max over 73 normals）被單一 BUSI 正常影像決定，使 UCLM 病灶 miss 達 65%，屬校準失敗而非模型失敗（見第 5 節）。
-- **YOLO 調參對等性，uclm:test，YOLO26m 加上與 WeVisOne 相同的超音波強增強**：WeVisOne − YOLO 病灶 Dice 差 +0.106（95% CI +0.025 至 +0.201，Holm p = 0.08）；FPR 差 +4.3 個百分點（95% CI -0.8 至 +10.2）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
-- **YOLO 調參對等性，uclm:test，最大尺寸 YOLO26x-seg**：WeVisOne − YOLO 病灶 Dice 差 +0.186（95% CI +0.098 至 +0.300，Holm p = 0.0054）；FPR 差 +1.1 個百分點（95% CI -4.2 至 +7.3）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
+- **多來源訓練（BUSI+BRA+UCLM train 病人），uclm:test，各來源自身 val 校準**：WeVisOne − YOLO 病灶 Dice 差 -0.093（95% CI -0.145 至 -0.033，YOLO 較高）；FPR 差 -2.0 個百分點（95% CI -5.5 至 +1.3；Dice Holm p = 0.0532，校正後略高於 0.05）。目標站點資料納入訓練後，WeVisOne 在 BUSI-only 設定下的外部優勢反轉為 YOLO 較佳；原本的合併 val 門檻（max over 73 normals）被單一 BUSI 正常影像決定，使 UCLM 病灶 miss 達 65%，屬校準失敗而非模型失敗（見第 5 節）。
+- **YOLO 調參對等性，uclm:test，YOLO26m 加上與 WeVisOne 相同的超音波強增強**：WeVisOne − YOLO 病灶 Dice 差 +0.106（95% CI +0.025 至 +0.201，Holm p = 0.18）；FPR 差 +4.3 個百分點（95% CI -0.8 至 +10.2）。此 YOLO 變體下 Dice 的點估計與未校正 95% CI 仍偏向 WeVisOne，但 Holm 校正後不顯著。
+- **YOLO 調參對等性，uclm:test，最大尺寸 YOLO26x-seg**：WeVisOne − YOLO 病灶 Dice 差 +0.186（95% CI +0.098 至 +0.300，Holm p = 0.0078）；FPR 差 +1.1 個百分點（95% CI -4.2 至 +7.3）。BUSI-only 的外部優勢在此 YOLO 變體下仍成立。
 - **計算成本**：WeVisOne 4.8B 參數、每張 729 ms、峰值 VRAM 11.1 GB；YOLO26m 27M 參數、每張 10 ms、0.25 GB（RTX 4090, batch 1）。WeVisOne 慢約 76 倍，準確度優勢須與此成本一併評估（見 5e）。
 
 bootstrap 先對每張影像跨訓練 seed 取平均，再以病人為單位做 5,000 次成對重抽樣；每次都保留原模型與門檻。CI 僅反映這些固定模型／門檻下的病人抽樣不確定性，未涵蓋重訓與重新校準。95% CI 未作多重比較調整；第 6 節另列 Holm-Bonferroni 校正後的 p 值（對全表所有比較）。
@@ -461,9 +461,9 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 完整數字見 [REPORT.md](REPORT.md)（第 1、5b、5e、6 節）。配對 bootstrap 為病人群集、5,000 次，p 值經 Holm 校正。
 
 **YOLO 調參對等性**（uclm:test，WeVisOne gate − YOLO val-cal 的病灶 Dice）
-- 對 YOLO26x-seg：+0.186 [+0.098, +0.300]，Holm p = 0.005。
-- 對 YOLO26m + 超音波強增強（gamma／斑點雜訊／模糊／解析度下降，`us_aug.py`）：+0.106 [+0.025, +0.201]，Holm p = 0.08；uclm:all 為 +0.118，p = 0.005。
-- 增強讓 YOLO 進步，但 BUSI-only 的外部優勢仍在；YOLO26x 沒有比 26m 好。
+- 對 YOLO26x-seg：+0.186 [+0.098, +0.300]，Holm p = 0.0078。
+- 對 YOLO26m + 超音波強增強（gamma／斑點雜訊／模糊／解析度下降，`us_aug.py`）：+0.106 [+0.025, +0.201]，Holm p = 0.18（校正後不顯著）；uclm:all 為 +0.118，Holm p = 0.0078。
+- 增強讓 YOLO 進步，BUSI-only 的外部優勢點估計仍在（uclm:test 校正後不顯著）；YOLO26x 沒有比 26m 好。
 
 **nnU-Net 補到 3 seeds**：raw 的 UCLM test FPR 約 74%，val 校準 gate 後漏判約 85%，結論不變。
 
@@ -471,12 +471,12 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 
 **較長訓練**（LoRA + AdamW，cosine 依總步數拉長；與 230 步比）
 - 460 步：FPR 與 Dice 皆無顯著差異。
-- 690 步：uclm:test FPR −3.7pp（p = 0.039），Dice 無差異；BUS_UC Dice −0.022（p = 0.005）。
+- 690 步：uclm:test FPR −3.7pp（Holm p = 0.045），Dice 無差異；BUS_UC Dice −0.022（Holm p = 0.0078）。
 - loss 仍在下降，但病灶 Dice 沒有提升；230 步大致足夠。
 
-**LoKr（PEFT LoKr r16，1.2M 參數，約 LoRA 的 1/28）+ AdamW**：起始 LR 只用 BUSI val 從 1e-4／3e-4／1e-3 選出 1e-3。與 LoRA 比，uclm:test Dice −0.018（Holm 後不顯著）、FPR +9.0pp（p = 0.004），且 seed 間 FPR 變異大。
+**LoKr（PEFT LoKr r16，1.2M 參數，約 LoRA 的 1/28）+ AdamW**：起始 LR 只用 BUSI val 從 1e-4／3e-4／1e-3 選出 1e-3。與 LoRA 比，uclm:test Dice −0.018（Holm 後不顯著）、FPR +9.0pp（Holm p = 0.0054），且 seed 間 FPR 變異大。
 
-**LoKr + Automagic3 + constant（起始 LR 1e-4）**：Dice 與 LoRA 相當（uclm:test 0.711），但 FPR 大幅升高：uclm:test +18.3pp [+15.1, +21.6]、uclm:all +15.7pp（皆 Holm p = 0.004），seed 間 33.7 ± 27.9%；BUS_UC Dice −0.011（p = 0.006）。Automagic3 取自 ostris/ai-toolkit（commit `cfdc903`，MIT），未修改，放在 `scripts/third_party/`。
+**LoKr + Automagic3 + constant（起始 LR 1e-4）**：Dice 與 LoRA 相當（uclm:test 0.711），但 FPR 大幅升高：uclm:test +18.3pp [+15.1, +21.6]、uclm:all +15.7pp（皆 Holm p = 0.0054），seed 間 33.7 ± 27.9%；BUS_UC Dice −0.011（Holm p = 0.0078）。Automagic3 取自 ostris/ai-toolkit（commit `cfdc903`，MIT），未修改，放在 `scripts/third_party/`。
 
 **其他新增**
 - 依良惡性與病灶大小分層：[STRATIFIED.md](STRATIFIED.md)。
@@ -488,7 +488,7 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 ## 17c. 2026-11-20 補充：ViT 微調、門檻規則與 WeVisOne 框 + MedSAM
 
 **ViT 微調**（其餘設定同原主方法：LLM LoRA r16、decoder 全部、AdamW、230 步、3 seeds）
-- `--vit_lora`：ViT 每個 block 的 attn qkv/proj 與 MLP 也加 LoRA，分割 loss 不再 detach。uclm:test FPR −8.3pp [−12.8, −4.5]（Holm p = 0.005），但漏判 17.2%（原 11.0%），Dice −0.018（不顯著），BrEaST Dice 0.621。整體變保守，AUROC 不變。
+- `--vit_lora`：ViT 每個 block 的 attn qkv/proj 與 MLP 也加 LoRA，分割 loss 不再 detach。uclm:test FPR −8.3pp [−12.8, −4.5]（Holm p = 0.0054），但漏判 17.2%（原 11.0%），Dice −0.018（不顯著），BrEaST Dice 0.621。整體變保守，AUROC 不變。
 - `--vit_full`：整個 ViT（0.415B）全量訓練，lr 1e-5，以 fp32 master 權重更新；峰值 VRAM 29.2 GB，RTX 4090 放不下，在 Colab G4（RTX PRO 6000 96 GB）訓練，notebook 見 `scripts/colab/`。
 
 **門檻規則**（[GATE_RULES.md](GATE_RULES.md)；只用快取分數，不重新推論）：max、q90、q80、Youden，全部只用各 run 自己的 BUSI val 擬合。
@@ -512,7 +512,7 @@ A = WeVisOne gate，B = YOLO cal。同 seed 按影像 ID 配對，僅對雙方�
 
 BUSI+BRA + 全量 ViT（q90）：uclm:test FPR 9.9%、Dice 0.771、BUS_UC 0.905（目前所有設定最高）、BUS-BRA test 0.886。
 
-**WeVisOne 框 + 門檻 → 微調 MedSAM 畫 mask**（[WEVIS_MEDSAM.md](WEVIS_MEDSAM.md)；原主方法 3 seeds）：五個外部資料集都比 WeVisOne 自己的 decoder 低 0.008–0.024（Holm p ≤ 0.002），BUSI test 打平；仍比 YOLO 高 0.12–0.42。外部優勢來自偵測，不需要外接 MedSAM。
+**WeVisOne 框 + 門檻 → 微調 MedSAM 畫 mask**（[WEVIS_MEDSAM.md](WEVIS_MEDSAM.md)；原主方法 3 seeds）：五個外部資料集都比 WeVisOne 自己的 decoder 低 0.008–0.024（Holm p ≤ 0.0024），BUSI test 打平；仍比 YOLO 高 0.12–0.42。外部優勢來自偵測，不需要外接 MedSAM。
 
 **圖**（`scripts/fig_report.py`）：[主要結果](fig_report_main.png)、[配對比較](fig_report_forest.png)、[門檻規則](fig_report_gate.png)、[誤報 vs 漏判](fig_report_tradeoff.png)、[訓練變體](fig_report_variants.png)、[decoder](fig_report_decoder.png)。
 
